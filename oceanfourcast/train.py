@@ -5,9 +5,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from torch.utils.data import BatchSampler
+from torch.utils.data import BatchSampler, DataLoader
 from functools import partial
-from load import OceanDataset
+from oceanfourcast import load, fourcastnet
+import importlib
+importlib.reload(load)
+importlib.reload(fourcastnet)
 
 
 def train_one_epoch(epoch, start_step, model, criterion, data_loder, optimizer, loss_scalar, lr_scheduler, min_loss):
@@ -27,13 +30,13 @@ def train_one_epoch(epoch, start_step, model, criterion, data_loder, optimizer, 
 
 
 def main(local_rank):
-    epochs = 80
-    batch_size = 3
+    epochs = 1
+    batch_size = 2
     lr = 5e-4
 
     # input size
-    h, w = 720, 1440
-    x_c, y_c = 20, 20
+    h, w = 248, 248
+    x_c, y_c = 6, 6
 
     # fix the seed for reproducibility
     seed = 1024
@@ -56,7 +59,7 @@ def main(local_rank):
     # val_datasampler = DistributedSampler(val_dataset, shuffle=False)
     # val_dataloader = DataLoader(val_dataset, args.batch_size, sampler=val_datasampler, num_workers=8, pin_memory=True, drop_last=False)
 
-    model = AFNONet(img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+    model = fourcastnet.AFNONet(img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6))
 
     optimizer = torch.optim.AdamW(lr=lr, betas=(0.9, 0.95))
     # loss_scaler = torch.cpu.amp.GradScaler(enabled=True)
@@ -80,5 +83,6 @@ def main(local_rank):
 
 
 if __name__ == '__main__':
+    pass
     # ngpus = torch.cuda.device_count()
     # torch.multiprocessing.spawn(main, args=(), nprocs=ngpus)

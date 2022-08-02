@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import torch
 import math
 from functools import partial
+from collections import OrderedDict
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -27,8 +28,8 @@ class Mlp(nn.Module):
 
 class PatchEmbed(nn.Module):
     def __init__(self, img_size, patch_size, in_chans=20, embed_dim=768):
-        super().__init__()
-        assert img_size[0] % patch_size == 0 and img_size[1] == 0, f"Input image size doesn't match model."
+        super(PatchEmbed, self).__init__()
+        assert (img_size[0] % patch_size == 0 and img_size[1] % patch_size == 0), f"Input image size doesn't match model."
         self.img_size = img_size
         self.patch_size = patch_size
         self.h =  img_size[0] // patch_size
@@ -51,11 +52,11 @@ class PatchEmbed(nn.Module):
 
 class AFNONet(nn.Module):
     def __init__(self, embed_dim, n_blocks, sparsity, img_size = None, in_chans=20, out_chans=20,
-                 mlp_ratio=None,  drop_rate=0.5, norm_layer=None, eps=1e-5, depth=12):
+                 mlp_ratio=4.,  drop_rate=0.5, norm_layer=None, depth=12, patch_size=8, use_blocks=True):
 
+        super(AFNONet, self).__init__()
         self.embed_dim = embed_dim
         self.n_blocks = n_blocks
-        self.bmlp = BlockMLP(embed_dim, n_blocks)
         self.sparsity = sparsity
 
         if img_size is None:
@@ -73,11 +74,10 @@ class AFNONet(nn.Module):
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
-        self.norm_layer = nn.LayerNorm()
-        self.eps = eps
+        self.norm_layer = norm_layer(embed_dim)
         self.dropout = nn.Dropout(p=drop_rate)
 
-        self.blocks = nn.ModuleList([Block(dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, drop_path=dpr[i], norm_layer=norm_layer, h=self.h, w=self.w, use_fno=use_fno, use_blocks=use_blocks) for i in range(depth)])
+        self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks) for i in range(depth)])
 
         self.pre_logits = nn.Sequential(OrderedDict([
             ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*16, kernel_size=(2, 2), stride=(2, 2))),
@@ -105,10 +105,10 @@ class AFNONet(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, embed_dim, mlp_ratio=4., drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, h=14, w=8, use_fno=False, use_blocks=False):
+    def __init__(self, embed_dim, mlp_ratio=4., drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, h=14, w=8, use_blocks=False):
         super().__init__()
         self.norm1 = norm_layer(embed_dim)
-        self.filter = AdaptiveFourierNeuralOperator(dim, h=h, w=w)
+        self.filter = AdaptiveFourierNeuralOperator(embed_dim, h=h, w=w)
         self.norm2 = norm_layer(embed_dim)
         mlp_hidden_dim = int(embed_dim * mlp_ratio)
         self.mlp = Mlp(in_features=embed_dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
@@ -131,8 +131,8 @@ class AdaptiveFourierNeuralOperator(nn.Module):
         self.w = w
 
         self.num_blocks = blocks
-        assert self.embed_dim % self.blocks == 0
-        self.block_size = self.embed_dim // self.blocks
+        assert self.embed_dim % self.num_blocks == 0
+        self.block_size = self.embed_dim // self.num_blocks
 
         self.scale = 0.02
         self.w1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size))
