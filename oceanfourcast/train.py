@@ -1,11 +1,12 @@
 import os
-import time
+from datetime import datetime
 from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import BatchSampler, DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from functools import partial
 from oceanfourcast import load, fourcastnet
 import importlib
@@ -13,26 +14,47 @@ importlib.reload(load)
 importlib.reload(fourcastnet)
 
 
-def train_one_epoch(epoch, start_step, model, criterion, data_loder, optimizer, loss_scalar, lr_scheduler, min_loss):
-    model.train()
-    for step, batch in enumerate(data_loader):
-        x, y = [x for x in batch[:2]]
-        x = x.transpose(3,2).transpose(2,1)
-        y = y.transpose(3,2).transpose(2,1)
+def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogger):
+    running_loss = 0.
+    last_loss =  0.
+    for i, batch in enumerate(data_loader):
 
-        out = model(x)
-        loss = criterion(out, y)
+        # Load data
+        x, y = batch[0][:-1], batch[0][1:]
+        #x = x.unsqueeze(0)
+        #y = y.unsqueeze(0)
+
+        # Zero gradients for every batch
         optimizer.zero_grad()
-        loss_scaler.scale(loss).backward()
-        loss_scaler.step(optimizer)
-        loss_scaler.update()
 
+        # Make predictions for this batch
+        out = model(x)
 
+        # Compute the loss and its gradients
+        loss = criterion(out, y)
+        loss.backward()
 
-def main(local_rank):
-    epochs = 1
-    batch_size = 2
+        # Adjust learning weights
+        optimizer.step()
+
+        # Gather data and report
+        running_loss += loss.item()
+        if i % 10 == 9:
+            last_loss = running_loss / 10 # loss per batch
+            print(f'batch {i+1}, loss: {last_loss}')
+            tb_x = epoch * len(data_loader) + i + 1
+            summarylogger.add_scalar('Loss/train', last_loss, tb_x)
+            running_loss = 0.
+
+    return last_loss
+
+def main():
+    epochs = 3
+    batch_size = 5
     lr = 5e-4
+    embed_dims = 256
+    patch_size = 8
+    sparsity = 0
 
     # input size
     h, w = 248, 248
@@ -43,43 +65,64 @@ def main(local_rank):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    train_dataset = OceanDataset("/home/bire/nobackup/mitgcm/baroclinic_gyre/run3/")
-    train_datasampler = BatchSampler(train_dataset, batch_size=2, drop_last=True)
-    train_dataloader = DataLoader(train_dataset, batch_sampler=train_datasampler)
+    train_dataset = load.OceanDataset("/home/suyash/Documents/data/")
+    #train_datasampler = BatchSampler(train_dataset, batch_size= batch_size=batch_size, drop_last=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size)#, batch_sampler=train_datasampler)
 
-    validation_dataset = OceanDataset("/home/bire/nobackup/mitgcm/baroclinic_gyre/run3/")
-    validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_sampler=validation_datasampler)
+    validation_dataset = load.OceanDataset("/home/suyash/Documents/data/", for_validate=True)
+    # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
+    validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size)#, batch_sampler=validation_datasampler)
 
-    # train_dataset = ERA5(split="train", check_data=True)
-    # train_datasampler = DistributedSampler(train_dataset, shuffle=True)
-    # train_dataloader = DataLoader(train_dataset, args.batch_size, sampler=train_datasampler, num_workers=8, pin_memory=True, drop_last=True)
+    model = fourcastnet.AFNONet(embed_dims, patch_size, sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6))
 
-    # val_dataset = ERA5(split="val", check_data=True)
-    # val_datasampler = DistributedSampler(val_dataset, shuffle=False)
-    # val_dataloader = DataLoader(val_dataset, args.batch_size, sampler=val_datasampler, num_workers=8, pin_memory=True, drop_last=False)
-
-    model = fourcastnet.AFNONet(img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6))
-
-    optimizer = torch.optim.AdamW(lr=lr, betas=(0.9, 0.95))
-    # loss_scaler = torch.cpu.amp.GradScaler(enabled=True)
     criterion = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(),lr=lr, betas=(0.9, 0.95))
 
-    for epoch in range(start_epoch, epochs):
+    # optimizer = torch.optim.AdamW(lr=lr, betas=(0.9, 0.95))
+    # loss_scaler = torch.cpu.amp.GradScaler(enabled=True)
+    # criterion = nn.MSELoss()
 
-        train_one_epoch(epoch, start_step, model, criterion, train_dataloader, optimizer, loss_scaler, lr_scheduler, min_loss)
-        start_step = 0
-        lr_scheduler.step(epoch)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    summarylogger = SummaryWriter(f'ofn_trainer_{timestamp}')
 
-        train_loss = single_step_evaluate(train_dataloader, model, criterion)
-        val_loss = single_step_evaluate(val_dataloader, model, criterion)
+    for epoch in range(epochs):
+        print('EPOCH {}:'.format(epoch + 1))
 
-        if rank == 0 and local_rank == 0:
-            print(f"Epoch {epoch} | Train loss: {train_loss:.6f}, Val loss: {val_loss:.6f}")
-            if val_loss < min_loss:
-                min_loss = val_loss
-                save_model(model, path=SAVE_PATH / 'backbone.pt', only_model=True)
-            save_model(model, epoch+1, 0, optimizer, lr_scheduler, loss_scaler, min_loss, SAVE_PATH / 'pretrain_latest.pt')
+        # Make sure gradient tracking is on, and do a pass over the data
+        model.train(True)
+        avg_loss = train_one_epoch(epoch, model, criterion, train_dataloader, optimizer, summarylogger)
+
+        # We don't need gradients on to do reporting
+        model.train(False)
+
+        running_vloss = 0.0
+        for i, vdata in enumerate(validation_dataloader):
+            # Load data
+            x, y = vdata[0][:-1], vdata[0][1:]
+            #x = x.unsqueeze(0)
+            #y = y.unsqueeze(0)
+
+            # Make predictions for this batch
+            out = model(x)
+
+            # Compute the loss and its gradients
+            vloss = criterion(out, y)
+            running_vloss += vloss
+        avg_vloss = running_vloss / (i+1)
+
+        print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
+
+        # Log the running loss averaged per batch
+        # for both training and validation
+        summarylogger.add_scalars('Training vs. Validation Loss',
+                                { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch + 1)
+        summarylogger.flush()
+
+        # # Track best performance, and save the model's state
+        # if avg_vloss < best_vloss:
+        #     best_vloss = avg_vloss
+        #     model_path = 'model_{}_{}'.format(timestamp, epoch)
+        #     torch.save(model.state_dict(), model_path)
 
 
 if __name__ == '__main__':

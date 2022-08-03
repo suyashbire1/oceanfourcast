@@ -5,23 +5,28 @@ import xarray as xr
 import numpy as np
 
 class OceanDataset(Dataset):
-    def __init__(self, data_dir, transform=None, target_transform=None):
+    def __init__(self, data_dir, transform=None, target_transform=None, for_validate=False):
         self.data_dir = data_dir
         self.transform = transform
         self.target_transform = target_transform
         self.ncfile = os.path.join(self.data_dir + "dynDiag.nc")
+        self.for_validate = for_validate
 
     def __len__(self):
         with xr.open_dataset(self.ncfile, decode_times=False) as ds:
-            return len(ds.T)
+            n = len(ds.T)
+            if self.for_validate:
+                return n // 10
+            else:
+                return n - n // 10
 
     def __getitem__(self, idx):
         with xr.open_dataset(self.ncfile, decode_times=False) as ds:
-            print('here')
+            n = len(ds.T)
+            if self.for_validate:
+                idx = n - n //10 + idx
             usurf = ds.UVEL.isel(T=idx, Zmd000015=0).values.squeeze()
-            print('here2')
             usurf = (usurf[...,:-1] + usurf[...,1:])/2
-            print('here3')
             vsurf = ds.VVEL.isel(T=idx, Zmd000015=0).values.squeeze()
             vsurf = (vsurf[...,:-1,:] + vsurf[...,1:,:])/2
             wmid = ds.WVEL.isel(T=idx, Zld000015=7).values.squeeze()
