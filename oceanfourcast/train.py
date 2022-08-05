@@ -48,7 +48,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 
     return last_loss
 
-def main(data_location=None):
+def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=0):
     epochs = 3
     batch_size = 5
     lr = 5e-4
@@ -56,8 +56,7 @@ def main(data_location=None):
     patch_size = 8
     sparsity = 0
 
-    # input size
-    h, w = 248, 248
+    # channel size
     x_c, y_c = 6, 6
 
     # fix the seed for reproducibility
@@ -68,10 +67,11 @@ def main(data_location=None):
     if data_location is None:
         data_location = "/home/suyash/Documents/data/"
     train_dataset = load.OceanDataset(data_location)
+    h, w = train_dataset.img_size
     #train_datasampler = BatchSampler(train_dataset, batch_size= batch_size=batch_size, drop_last=True)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)#, batch_sampler=train_datasampler)
 
-    validation_dataset = load.OceanDataset("/home/suyash/Documents/data/", for_validate=True)
+    validation_dataset = load.OceanDataset(data_location, for_validate=True)
     # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size)#, batch_sampler=validation_datasampler)
 
@@ -119,6 +119,9 @@ def main(data_location=None):
         summarylogger.add_scalars('Training vs. Validation Loss',
                                 { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch + 1)
         summarylogger.flush()
+
+    train_dataset.close()
+    validation_dataset.close()
 
         # # Track best performance, and save the model's state
         # if avg_vloss < best_vloss:
