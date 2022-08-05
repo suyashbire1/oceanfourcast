@@ -48,7 +48,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 
     return last_loss
 
-def main():
+def main(data_location=None):
     epochs = 3
     batch_size = 5
     lr = 5e-4
@@ -65,7 +65,9 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    train_dataset = load.OceanDataset("/home/suyash/Documents/data/")
+    if data_location is None:
+        data_location = "/home/suyash/Documents/data/"
+    train_dataset = load.OceanDataset(data_location)
     #train_datasampler = BatchSampler(train_dataset, batch_size= batch_size=batch_size, drop_last=True)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)#, batch_sampler=train_datasampler)
 
