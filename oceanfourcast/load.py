@@ -11,8 +11,35 @@ class OceanDataset(Dataset):
         self.target_transform = target_transform
         self.ncfile = os.path.join(self.data_dir + "dynDiag.nc")
         self.for_validate = for_validate
-        self.ds = xr.open_dataset(self.ncfile, decode_times=False)
+        
+        ds = xr.open_dataset(self.ncfile, decode_times=False)
+        self.ds = ds
         self.img_size = [ds.X.size, ds.Y.size]
+
+        self.usurfmean = ds.UVEL.isel(Zmd000015=0).mean().values
+        self.usurfstd = ds.UVEL.isel(Zmd000015=0).std().values
+        self.umidmean = ds.UVEL.isel(Zmd000015=7).mean().values
+        self.umidstd = ds.UVEL.isel(Zmd000015=7).std().values
+
+        self.vsurfmean = ds.VVEL.isel(Zmd000015=0).mean().values
+        self.vsurfstd = ds.VVEL.isel(Zmd000015=0).std().values
+        self.vmidmean = ds.VVEL.isel(Zmd000015=7).mean().values
+        self.vmidstd = ds.VVEL.isel(Zmd000015=7).std().values
+
+        self.wmidmean = ds.WVEL.isel(Zld000015=7).mean().values
+        self.wmidstd = ds.WVEL.isel(Zld000015=7).std().values
+
+        self.thetasurfmean = ds.THETA.isel(Zmd000015=0).mean().values
+        self.thetasurfstd = ds.THETA.isel(Zmd000015=0).std().values
+        self.thetamidmean = ds.THETA.isel(Zmd000015=7).mean().values
+        self.thetamidstd = ds.THETA.isel(Zmd000015=7).std().values
+
+        self.psurfmean = ds.PHIHYD.isel(Zmd000015=0).mean().values
+        self.psurfstd = ds.PHIHYD.isel(Zmd000015=0).std().values
+        self.pmidmean = ds.PHIHYD.isel(Zmd000015=7).mean().values
+        self.pmidstd = ds.PHIHYD.isel(Zmd000015=7).std().values
+        self.pbotmean = ds.PHIHYD.isel(Zmd000015=-1).mean().values
+        self.pbotstd = ds.PHIHYD.isel(Zmd000015=-1).std().values
 
     def close(self):
         self.ds.close()
@@ -28,15 +55,27 @@ class OceanDataset(Dataset):
         n = len(self.ds.T)
         if self.for_validate:
             idx = n - n //10 + idx
-        usurf = self.ds.UVEL.isel(T=idx, Zmd000015=0).values.squeeze()
+
+        usurf = (self.ds.UVEL.isel(T=idx, Zmd000015=0).values.squeeze() - self.usurfmean)/self.usurfstd
         usurf = (usurf[...,:-1] + usurf[...,1:])/2
-        vsurf = self.ds.VVEL.isel(T=idx, Zmd000015=0).values.squeeze()
+        umid = (self.ds.UVEL.isel(T=idx, Zmd000015=7).values.squeeze() - self.umidmean)/self.umidstd
+        umid = (umid[...,:-1] + umid[...,1:])/2
+
+        vsurf = (self.ds.VVEL.isel(T=idx, Zmd000015=0).values.squeeze() - self.vsurfmean)/self.vsurfstd
         vsurf = (vsurf[...,:-1,:] + vsurf[...,1:,:])/2
-        wmid = self.ds.WVEL.isel(T=idx, Zld000015=7).values.squeeze()
-        thetasurf = self.ds.THETA.isel(T=idx, Zmd000015=0).values.squeeze()
-        Psurf = self.ds.PHIHYD.isel(T=idx, Zmd000015=0).values.squeeze()
-        Pmid = self.ds.PHIHYD.isel(T=idx, Zmd000015=7).values.squeeze()
-        channels = [usurf, vsurf, wmid, thetasurf, Psurf, Pmid]
+        vmid = (self.ds.VVEL.isel(T=idx, Zmd000015=7).values.squeeze() - self.vmidmean)/self.vmidstd
+        vmid = (vmid[...,:-1,:] + vmid[...,1:,:])/2
+
+        wmid = (self.ds.WVEL.isel(T=idx, Zld000015=7).values.squeeze() - self.wmidmean)/self.wmidstd
+
+        thetasurf = (self.ds.THETA.isel(T=idx, Zmd000015=0).values.squeeze() - self.thetasurfmean)/self.thetasurfstd
+        thetamid = (self.ds.THETA.isel(T=idx, Zmd000015=7).values.squeeze() - self.thetamidmean)/self.thetamidstd
+
+        Psurf = (self.ds.PHIHYD.isel(T=idx, Zmd000015=0).values.squeeze() - self.psurfmean)/self.psurfstd
+        Pmid = (self.ds.PHIHYD.isel(T=idx, Zmd000015=7).values.squeeze() - self.pmidmean)/self.pmidstd
+        Pbot = (self.ds.PHIHYD.isel(T=idx, Zmd000015=-1).values.squeeze() - self.pbotmean)/self.pbotstd
+
+        channels = [usurf, umid, vsurf, vmid, wmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
         data = np.vstack([channel[np.newaxis,...] for channel in channels])
         T = self.ds.T.isel(T=idx).values
 

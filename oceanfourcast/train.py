@@ -49,15 +49,9 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
     return last_loss
 
 def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=0):
-    epochs = 3
-    batch_size = 5
-    lr = 5e-4
-    embed_dims = 256
-    patch_size = 8
-    sparsity = 0
 
     # channel size
-    x_c, y_c = 6, 6
+    x_c, y_c = 10, 10
 
     # fix the seed for reproducibility
     seed = 1024
@@ -87,8 +81,9 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     summarylogger = SummaryWriter(f'ofn_trainer_{timestamp}')
 
+    best_vloss = 1000000.
     for epoch in range(epochs):
-        print('EPOCH {}:'.format(epoch + 1))
+        print(f'EPOCH {epoch + 1}:')
 
         # Make sure gradient tracking is on, and do a pass over the data
         model.train(True)
@@ -120,14 +115,15 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
                                 { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch + 1)
         summarylogger.flush()
 
+
+        # Track best performance, and save the model's state
+        if avg_vloss < best_vloss:
+            best_vloss = avg_vloss
+            model_path = f'model_{timestamp}_{epoch+1}'
+            torch.save(model.state_dict(), model_path)
+
     train_dataset.close()
     validation_dataset.close()
-
-        # # Track best performance, and save the model's state
-        # if avg_vloss < best_vloss:
-        #     best_vloss = avg_vloss
-        #     model_path = 'model_{}_{}'.format(timestamp, epoch)
-        #     torch.save(model.state_dict(), model_path)
 
 
 if __name__ == '__main__':
