@@ -5,12 +5,13 @@ import xarray as xr
 import numpy as np
 
 class OceanDataset(Dataset):
-    def __init__(self, data_dir, transform=None, target_transform=None, for_validate=False):
+    def __init__(self, data_dir, transform=None, target_transform=None, for_validate=False, tslag=3):
         self.data_dir = data_dir
         self.transform = transform
         self.target_transform = target_transform
         self.ncfile = os.path.join(self.data_dir + "dynDiag.nc")
         self.for_validate = for_validate
+        self.tslag = tslag
         
         ds = xr.open_dataset(self.ncfile, decode_times=False)
         self.ds = ds
@@ -51,11 +52,7 @@ class OceanDataset(Dataset):
         else:
             return n - n // 10
 
-    def __getitem__(self, idx):
-        n = len(self.ds.T)
-        if self.for_validate:
-            idx = n - n //10 + idx
-
+    def get_data(self, idx):
         usurf = (self.ds.UVEL.isel(T=idx, Zmd000015=0).values.squeeze() - self.usurfmean)/self.usurfstd
         usurf = (usurf[...,:-1] + usurf[...,1:])/2
         umid = (self.ds.UVEL.isel(T=idx, Zmd000015=7).values.squeeze() - self.umidmean)/self.umidstd
@@ -77,10 +74,19 @@ class OceanDataset(Dataset):
 
         channels = [usurf, umid, vsurf, vmid, wmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
         data = np.vstack([channel[np.newaxis,...] for channel in channels])
-        T = self.ds.T.isel(T=idx).values
+        return data
+
+    def __getitem__(self, idx):
+        n = len(self.ds.T)
+        if self.for_validate:
+            idx = n - n //10 + idx - self.tslag
+
+        data = self.get_data(idx)
+        T    = self.get_data(idx + self.tslag)
 
         if self.transform:
             data = self.transform(data)
         if self.target_transform:
             T = self.target_transform(T)
+
         return data, T

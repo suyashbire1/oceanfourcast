@@ -20,7 +20,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
     for i, batch in enumerate(data_loader):
 
         # Load data
-        x, y = batch[0][:-1], batch[0][1:]
+        x, y = batch[0], batch[1]
         #x = x.unsqueeze(0)
         #y = y.unsqueeze(0)
 
@@ -95,7 +95,7 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
         running_vloss = 0.0
         for i, vdata in enumerate(validation_dataloader):
             # Load data
-            x, y = vdata[0][:-1], vdata[0][1:]
+            x, y = vdata[0], vdata[0]
             #x = x.unsqueeze(0)
             #y = y.unsqueeze(0)
 
