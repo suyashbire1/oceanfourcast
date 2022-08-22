@@ -44,9 +44,9 @@ class PatchEmbed(nn.Module):
         )
 
     def forward(self, x):
-        x = self.proj(x)     # (n_samples, d, h, w)
-        x = x.flatten(2)     # (n_samples, d, h*w)
-        x = x.transpose(1,2) # (n_samples, h*w, d)
+        x = self.proj(x)     # (b, d, h, w)
+        x = x.flatten(2)     # (b, d, h*w)
+        x = x.transpose(1,2) # (b, h*w, d)
         return x
 
 
@@ -90,17 +90,17 @@ class AFNONet(nn.Module):
         self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(2, 2), stride=(2, 2))
 
     def forward(self, x):
-        b = x.shape[0]                                                   # (n_samples, in_chans, img_size[0], img_size[1])
-        x = self.patch_embed(x)                                          # (n_samples, h*w, d)
-        x = x + self.pos_embed                                           # (n_samples, h*w, d)
-        x = self.pos_drop(x)                                             # (n_samples, h*w, d)
+        b = x.shape[0]                                                   # (b, in_chans, img_size[0], img_size[1])
+        x = self.patch_embed(x)                                          # (b, h*w, d)
+        x = x + self.pos_embed                                           # (b, h*w, d)
+        x = self.pos_drop(x)                                             # (b, h*w, d)
         for blk in self.blocks:
-            x = blk(x)                                                   # (n_samples, h*w, d)
-        x = self.norm(x).transpose(1,2)                                  # (n_samples, d, h*w)
-        x = torch.reshape(x, [-1, self.embed_dim, self.h, self.w])       # (n_samples, d, h, w)
-        x = self.dropout(x)                                              # (n_samples, d, h, w)
-        x = self.pre_logits(x)                                           # (n_samples, out_chans*4, h*4, w*4)      # hard-coded!
-        x = self.head(x)                                                 # (n_samples, out_chans, 8*h, 8*w)        # hard-coded!
+            x = blk(x)                                                   # (b, h*w, d)
+        x = self.norm(x).transpose(1,2)                                  # (b, d, h*w)
+        x = torch.reshape(x, [-1, self.embed_dim, self.h, self.w])       # (b, d, h, w)
+        x = self.dropout(x)                                              # (b, d, h, w)
+        x = self.pre_logits(x)                                           # (b, out_chans*4, h*4, w*4)      # hard-coded!
+        x = self.head(x)                                                 # (b, out_chans, 8*h, 8*w)        # hard-coded!
         return x
 
 
@@ -114,11 +114,11 @@ class Block(nn.Module):
         self.mlp = Mlp(in_features=embed_dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
     def forward(self, x):
-        residual = x                            # (n_samples, h*w, d)
-        x = self.norm1(x)                       # (n_samples, h*w, d)
-        x = self.filter(x)                      # (n_samples, h*w, d)
-        x = self.norm2(x)                       # (n_samples, h*w, d)
-        x = self.mlp(x)                         # (n_samples, h*w, d)
+        residual = x                            # (b, h*w, d)
+        x = self.norm1(x)                       # (b, h*w, d)
+        x = self.filter(x)                      # (b, h*w, d)
+        x = self.norm2(x)                       # (b, h*w, d)
+        x = self.mlp(x)                         # (b, h*w, d)
         x = x + residual
         return x
 
