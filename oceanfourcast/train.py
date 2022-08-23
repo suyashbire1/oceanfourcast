@@ -82,9 +82,11 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     summarylogger = SummaryWriter(f'ofn_trainer_{timestamp}')
 
+
     best_vloss = 1000000.
-    for epoch in range(epochs):
-        print(f'EPOCH {epoch + 1}:')
+    best_vloss_epoch = 1
+    for epoch in range(1, epochs+1):
+        print(f'EPOCH {epoch}:')
 
         # Make sure gradient tracking is on, and do a pass over the data
         model.train(True)
@@ -113,16 +115,23 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
         # Log the running loss averaged per batch
         # for both training and validation
         summarylogger.add_scalars('Training vs. Validation Loss',
-                                { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch + 1)
+                                { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch)
         summarylogger.flush()
 
 
         # Track best performance, and save the model's state
         if avg_vloss < best_vloss:
             best_vloss = avg_vloss
-            model_path = f'model_{timestamp}_{epoch+1}'
+            best_vloss_epoch = epoch
+            model_path = f'model_{timestamp}_{epoch}'
             torch.save(model.state_dict(), model_path)
 
+    summarylogger.add_hparams({'lr': lr, 'epochs': epochs, 'batch_size': batch_size,
+                               'embed_dims': embed_dims, 'patch_size': patch_size,
+                               'sparsity': sparsity, 'data_location': data_location},
+                              {'hparam/best_vloss': best_vloss, 'hparam/best_vloss_epoch': best_vloss_epoch})
+    summarylogger.flush()
+    summarylogger.close()
     train_dataset.close()
     validation_dataset.close()
 
