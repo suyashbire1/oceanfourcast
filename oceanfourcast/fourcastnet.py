@@ -52,7 +52,8 @@ class PatchEmbed(nn.Module):
 
 class AFNONet(nn.Module):
     def __init__(self, embed_dim, n_blocks, sparsity, img_size = None, in_chans=20, out_chans=20,
-                 mlp_ratio=4.,  drop_rate=0.5, norm_layer=None, depth=12, patch_size=8, use_blocks=True):
+                 mlp_ratio=4.,  drop_rate=0.5, norm_layer=None, depth=12, patch_size=8, use_blocks=True,
+                 device='cpu'):
 
         super(AFNONet, self).__init__()
         self.embed_dim = embed_dim
@@ -77,7 +78,7 @@ class AFNONet(nn.Module):
         self.norm_layer = norm_layer(embed_dim)
         self.dropout = nn.Dropout(p=drop_rate)
 
-        self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks) for i in range(depth)])
+        self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks, device=device) for i in range(depth)])
 
         self.pre_logits = nn.Sequential(OrderedDict([
             ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*16, kernel_size=(2, 2), stride=(2, 2))),
@@ -105,10 +106,10 @@ class AFNONet(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, embed_dim, mlp_ratio=4., drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, h=14, w=8, use_blocks=False):
+    def __init__(self, embed_dim, mlp_ratio=4., drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, h=14, w=8, use_blocks=False, device='cpu'):
         super().__init__()
         self.norm1 = norm_layer(embed_dim)
-        self.filter = AdaptiveFourierNeuralOperator(embed_dim, h=h, w=w)
+        self.filter = AdaptiveFourierNeuralOperator(embed_dim, h=h, w=w, device=device)
         self.norm2 = norm_layer(embed_dim)
         mlp_hidden_dim = int(embed_dim * mlp_ratio)
         self.mlp = Mlp(in_features=embed_dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
@@ -124,7 +125,7 @@ class Block(nn.Module):
 
 
 class AdaptiveFourierNeuralOperator(nn.Module):
-    def __init__(self, embed_dim, h, w, blocks=8, bias=None, softshrink=True):
+    def __init__(self, embed_dim, h, w, blocks=8, bias=None, softshrink=True, device='cpu'):
         super(AdaptiveFourierNeuralOperator, self).__init__()
         self.embed_dim = embed_dim
         self.h = h
@@ -135,10 +136,10 @@ class AdaptiveFourierNeuralOperator(nn.Module):
         self.block_size = self.embed_dim // self.num_blocks
 
         self.scale = 0.02
-        self.w1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size))
-        self.w2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size))
-        self.b1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size))
-        self.b2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size))
+        self.w1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size)).to(device)
+        self.w2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size)).to(device)
+        self.b1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size)).to(device)
+        self.b2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size)).to(device)
         self.relu = nn.ReLU()
 
         if bias:

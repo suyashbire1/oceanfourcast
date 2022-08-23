@@ -12,7 +12,7 @@ class OceanDataset(Dataset):
         self.ncfile = os.path.join(self.data_dir + "dynDiag.nc")
         self.for_validate = for_validate
         self.tslag = tslag
-        
+
         ds = xr.open_dataset(self.ncfile, decode_times=False)
         self.ds = ds
         self.img_size = [ds.X.size, ds.Y.size]

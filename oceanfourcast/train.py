@@ -1,4 +1,5 @@
 import os
+import argparse
 from datetime import datetime
 from pathlib import Path
 import numpy as np
@@ -48,7 +49,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 
     return last_loss
 
-def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=0):
+def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=0, device='cpu'):
 
     # channel size
     x_c, y_c = 10, 10
@@ -63,13 +64,13 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
     train_dataset = load.OceanDataset(data_location)
     h, w = train_dataset.img_size
     #train_datasampler = BatchSampler(train_dataset, batch_size= batch_size=batch_size, drop_last=True)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size)#, batch_sampler=train_datasampler)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size).to(device)#, batch_sampler=train_datasampler)
 
     validation_dataset = load.OceanDataset(data_location, for_validate=True)
     # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size)#, batch_sampler=validation_datasampler)
+    validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size).to(device)#, batch_sampler=validation_datasampler)
 
-    model = fourcastnet.AFNONet(embed_dims, patch_size, sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+    model = fourcastnet.AFNONet(embed_dims, patch_size, sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device).to(device)
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(),lr=lr, betas=(0.9, 0.95))
@@ -127,6 +128,25 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
 
 
 if __name__ == '__main__':
-    pass
-    # ngpus = torch.cuda.device_count()
-    # torch.multiprocessing.spawn(main, args=(), nprocs=ngpus)
+    if torch.cuda.is_available():
+        device = "cuda:0"
+    else:
+        device = "cpu"
+
+    args =      ["epochs", "data_location",   "batch_size", "learning_rate", "embed_dims", "patch_size", "sparsity"]
+    types =     ["int",    "str",             "int",        "float",         "int",        "int",        "float"]
+    defaults =  [20,       "run8/dynDiag.nc", 10,           5e-4,            256,          8,            0.]
+    parser = argparse.ArgumentParser()
+
+    for arg, type_, default_ in zip(args, types, defaults):
+        parser.add_argument("--"+arg, type=type_, default=default_)
+
+    # main(epochs=20, data_location="/nobackup1c/users/bire/ofn/")
+    main(data_location=args.data_location,
+         epochs=args.epochs,
+         batch_size=args.batch_size,
+         lr=args.learning_rate,
+         embed_dims=args.embed_dims,
+         patch_size=args.patch_size,
+         sparsity=args.sparsity,
+         device=device)
