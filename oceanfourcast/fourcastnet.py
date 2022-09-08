@@ -88,7 +88,8 @@ class AFNONet(nn.Module):
         ]))
 
         # Generator head
-        self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(2, 2), stride=(2, 2))
+        ks, st = patch_size/4, patch_size/4
+        self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(ks, st), stride=(st, st))
 
     def forward(self, x):
         b = x.shape[0]                                                   # (b, in_chans, img_size[0], img_size[1])
@@ -100,8 +101,8 @@ class AFNONet(nn.Module):
         x = self.norm(x).transpose(1,2)                                  # (b, d, h*w)
         x = torch.reshape(x, [-1, self.embed_dim, self.h, self.w])       # (b, d, h, w)
         x = self.dropout(x)                                              # (b, d, h, w)
-        x = self.pre_logits(x)                                           # (b, out_chans*4, h*4, w*4)      # hard-coded!
-        x = self.head(x)                                                 # (b, out_chans, 8*h, 8*w)        # hard-coded!
+        x = self.pre_logits(x)                                           # (b, out_chans*4, h*4, w*4)                        # hard-coded!
+        x = self.head(x)                                                 # (b, out_chans, h*patch_size, w*patch_size)        # hard-coded!
         return x
 
 
