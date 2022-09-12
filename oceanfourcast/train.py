@@ -49,7 +49,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 
     return last_loss
 
-def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=0, device='cpu'):
+def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=1e-2, device='cpu', tslag=3, spinupts=0, normalize=False):
 
     # channel size
     x_c, y_c = 10, 10
@@ -61,16 +61,16 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
 
     if data_location is None:
         data_location = "/home/suyash/Documents/data/"
-    train_dataset = load.OceanDataset(data_location)
+    train_dataset = load.OceanDataset(data_location, spinupts=spinupts, tslag=tslag, normalize=normalize)
     h, w = train_dataset.img_size
     #train_datasampler = BatchSampler(train_dataset, batch_size= batch_size=batch_size, drop_last=True)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size).to(device)#, batch_sampler=train_datasampler)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True)#, batch_sampler=train_datasampler)
 
-    validation_dataset = load.OceanDataset(data_location, for_validate=True)
+    validation_dataset = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=tslag, normalize=normalize)
     # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size).to(device)#, batch_sampler=validation_datasampler)
+    validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
 
-    model = fourcastnet.AFNONet(embed_dims, patch_size, sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device).to(device)
+    model = fourcastnet.AFNONet(embed_dim=embed_dims, patch_size=patch_size, sparsity=sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device).to(device)
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(),lr=lr, betas=(0.9, 0.95))

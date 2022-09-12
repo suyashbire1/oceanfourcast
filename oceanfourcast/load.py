@@ -5,7 +5,7 @@ import xarray as xr
 import numpy as np
 
 class OceanDataset(Dataset):
-    def __init__(self, data_dir, transform=None, target_transform=None, for_validate=False, tslag=3):
+    def __init__(self, data_dir, transform=None, target_transform=None, for_validate=False, tslag=3, spinupts=0, normalize=False):
         self.data_dir = data_dir
         self.transform = transform
         self.target_transform = target_transform
@@ -16,37 +16,65 @@ class OceanDataset(Dataset):
         ds = xr.open_dataset(self.ncfile, decode_times=False)
         self.ds = ds
         self.img_size = [ds.X.size, ds.Y.size]
+        self.spinupts = spinupts
+        self.T_spinup = slice(spinupts,None)
 
-        self.usurfmean = ds.UVEL.isel(Zmd000015=0).mean().values
-        self.usurfstd = ds.UVEL.isel(Zmd000015=0).std().values
-        self.umidmean = ds.UVEL.isel(Zmd000015=7).mean().values
-        self.umidstd = ds.UVEL.isel(Zmd000015=7).std().values
+        if normalize:
+            self.usurfmean = ds.UVEL.isel(Zmd000015=0, T=self.T_spinup).mean().values
+            self.usurfstd = ds.UVEL.isel(Zmd000015=0, T=self.T_spinup).std().values
+            self.umidmean = ds.UVEL.isel(Zmd000015=7, T=self.T_spinup).mean().values
+            self.umidstd = ds.UVEL.isel(Zmd000015=7, T=self.T_spinup).std().values
 
-        self.vsurfmean = ds.VVEL.isel(Zmd000015=0).mean().values
-        self.vsurfstd = ds.VVEL.isel(Zmd000015=0).std().values
-        self.vmidmean = ds.VVEL.isel(Zmd000015=7).mean().values
-        self.vmidstd = ds.VVEL.isel(Zmd000015=7).std().values
+            self.vsurfmean = ds.VVEL.isel(Zmd000015=0, T=self.T_spinup).mean().values
+            self.vsurfstd = ds.VVEL.isel(Zmd000015=0, T=self.T_spinup).std().values
+            self.vmidmean = ds.VVEL.isel(Zmd000015=7, T=self.T_spinup).mean().values
+            self.vmidstd = ds.VVEL.isel(Zmd000015=7, T=self.T_spinup).std().values
 
-        self.wmidmean = ds.WVEL.isel(Zld000015=7).mean().values
-        self.wmidstd = ds.WVEL.isel(Zld000015=7).std().values
+            self.wmidmean = ds.WVEL.isel(Zld000015=7, T=self.T_spinup).mean().values
+            self.wmidstd = ds.WVEL.isel(Zld000015=7, T=self.T_spinup).std().values
 
-        self.thetasurfmean = ds.THETA.isel(Zmd000015=0).mean().values
-        self.thetasurfstd = ds.THETA.isel(Zmd000015=0).std().values
-        self.thetamidmean = ds.THETA.isel(Zmd000015=7).mean().values
-        self.thetamidstd = ds.THETA.isel(Zmd000015=7).std().values
+            self.thetasurfmean = ds.THETA.isel(Zmd000015=0, T=self.T_spinup).mean().values
+            self.thetasurfstd = ds.THETA.isel(Zmd000015=0, T=self.T_spinup).std().values
+            self.thetamidmean = ds.THETA.isel(Zmd000015=7, T=self.T_spinup).mean().values
+            self.thetamidstd = ds.THETA.isel(Zmd000015=7, T=self.T_spinup).std().values
 
-        self.psurfmean = ds.PHIHYD.isel(Zmd000015=0).mean().values
-        self.psurfstd = ds.PHIHYD.isel(Zmd000015=0).std().values
-        self.pmidmean = ds.PHIHYD.isel(Zmd000015=7).mean().values
-        self.pmidstd = ds.PHIHYD.isel(Zmd000015=7).std().values
-        self.pbotmean = ds.PHIHYD.isel(Zmd000015=-1).mean().values
-        self.pbotstd = ds.PHIHYD.isel(Zmd000015=-1).std().values
+            self.psurfmean = ds.PHIHYD.isel(Zmd000015=0, T=self.T_spinup).mean().values
+            self.psurfstd = ds.PHIHYD.isel(Zmd000015=0, T=self.T_spinup).std().values
+            self.pmidmean = ds.PHIHYD.isel(Zmd000015=7, T=self.T_spinup).mean().values
+            self.pmidstd = ds.PHIHYD.isel(Zmd000015=7, T=self.T_spinup).std().values
+            self.pbotmean = ds.PHIHYD.isel(Zmd000015=-1, T=self.T_spinup).mean().values
+            self.pbotstd = ds.PHIHYD.isel(Zmd000015=-1, T=self.T_spinup).std().values
+        else:
+            self.usurfmean = 0.0
+            self.usurfstd = 1.0
+            self.umidmean = 0.0
+            self.umidstd = 1.0
+
+            self.vsurfmean = 0.0
+            self.vsurfstd = 1.0
+            self.vmidmean = 0.0
+            self.vmidstd = 1.0
+
+            self.wmidmean = 0.0
+            self.wmidstd = 1.0
+
+            self.thetasurfmean = 0.0
+            self.thetasurfstd = 1.0
+            self.thetamidmean = 0.0
+            self.thetamidstd = 1.0
+
+            self.psurfmean = 0.0
+            self.psurfstd = 1.0
+            self.pmidmean = 0.0
+            self.pmidstd = 1.0
+            self.pbotmean = 0.0
+            self.pbotstd = 1.0
 
     def close(self):
         self.ds.close()
 
     def __len__(self):
-        n = len(self.ds.T)
+        n = len(self.ds.T.isel(T=self.T_spinup))
         if self.for_validate:
             return n // 10
         else:
@@ -77,7 +105,9 @@ class OceanDataset(Dataset):
         return data
 
     def __getitem__(self, idx):
-        n = len(self.ds.T)
+        idx = idx + self.spinupts
+        n = len(self.ds.T.isel(T=self.T_spinup))
+
         if self.for_validate:
             idx = n - n //10 + idx - self.tslag
 

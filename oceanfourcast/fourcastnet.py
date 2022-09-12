@@ -51,7 +51,7 @@ class PatchEmbed(nn.Module):
 
 
 class AFNONet(nn.Module):
-    def __init__(self, embed_dim, n_blocks, sparsity, img_size = None, in_chans=20, out_chans=20,
+    def __init__(self, embed_dim=256, n_blocks=8, sparsity=1e-2, img_size = None, in_chans=20, out_chans=20,
                  mlp_ratio=4.,  drop_rate=0.5, norm_layer=None, depth=12, patch_size=8, use_blocks=True,
                  device='cpu'):
 
@@ -78,18 +78,26 @@ class AFNONet(nn.Module):
         self.norm_layer = norm_layer(embed_dim)
         self.dropout = nn.Dropout(p=drop_rate)
 
-        self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks, device=device) for i in range(depth)])
+        self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks, device=device, num_blocks=n_blocks, sparsity=sparsity) for i in range(depth)])
+
+#        self.pre_logits = nn.Sequential(OrderedDict([
+#            ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*16, kernel_size=(2, 2), stride=(2, 2))),
+#            ('act1', nn.Tanh()),
+#            ('conv2', nn.ConvTranspose2d(out_chans*16, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
+#            ('act2', nn.Tanh())
+#        ]))
+#        assert (patch_size % 4 == 0), f"Patch size is not divisible by 4"
+#        ks, st = patch_size//4, patch_size//4
+#        self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(ks, ks), stride=(st, st))
+
 
         self.pre_logits = nn.Sequential(OrderedDict([
-            ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*16, kernel_size=(2, 2), stride=(2, 2))),
-            ('act1', nn.Tanh()),
-            ('conv2', nn.ConvTranspose2d(out_chans*16, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
-            ('act2', nn.Tanh())
+            ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
+            ('act1', nn.Tanh())
         ]))
 
         # Generator head
-        ks, st = patch_size/4, patch_size/4
-        self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(ks, st), stride=(st, st))
+        self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(2, 2), stride=(2, 2))
 
     def forward(self, x):
         b = x.shape[0]                                                   # (b, in_chans, img_size[0], img_size[1])
@@ -107,10 +115,10 @@ class AFNONet(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, embed_dim, mlp_ratio=4., drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, h=14, w=8, use_blocks=False, device='cpu'):
+    def __init__(self, embed_dim, mlp_ratio=4., drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, h=14, w=8, use_blocks=False, device='cpu', num_blocks=8, sparsity=1e-2):
         super().__init__()
         self.norm1 = norm_layer(embed_dim)
-        self.filter = AdaptiveFourierNeuralOperator(embed_dim, h=h, w=w, device=device)
+        self.filter = AdaptiveFourierNeuralOperator(embed_dim, h=h, w=w, device=device, num_blocks=num_blocks, sparsity=sparsity)
         self.norm2 = norm_layer(embed_dim)
         mlp_hidden_dim = int(embed_dim * mlp_ratio)
         self.mlp = Mlp(in_features=embed_dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
@@ -126,13 +134,13 @@ class Block(nn.Module):
 
 
 class AdaptiveFourierNeuralOperator(nn.Module):
-    def __init__(self, embed_dim, h, w, blocks=8, bias=None, softshrink=True, device='cpu'):
+    def __init__(self, embed_dim, h, w, num_blocks=8, bias=None, softshrink=True, device='cpu', sparsity=1e-2):
         super(AdaptiveFourierNeuralOperator, self).__init__()
         self.embed_dim = embed_dim
         self.h = h
         self.w = w
 
-        self.num_blocks = blocks
+        self.num_blocks = num_blocks
         assert self.embed_dim % self.num_blocks == 0
         self.block_size = self.embed_dim // self.num_blocks
 
@@ -149,6 +157,7 @@ class AdaptiveFourierNeuralOperator(nn.Module):
             self.bias = None
 
         self.softshrink = softshrink
+        self.sparsity = sparsity
 
     def multiply(self, input, weights):
         return torch.einsum('...lm,lmn->...ln', input, weights)
@@ -174,7 +183,7 @@ class AdaptiveFourierNeuralOperator(nn.Module):
         x_imag_2 = F.relu(self.multiply(x_real_1, self.w2[1]) + self.multiply(x_imag_1, self.w2[0]) + self.b2[1])  # (b, h, w//2+1, k, d/k)
 
         x = torch.stack([x_real_2, x_imag_2], dim=-1).float() # (b, h, w//2+1, k, 2*d/k)
-        x = F.softshrink(x, lambd=self.softshrink)            # (b, h, w//2+1, k, 2*d/k)
+        x = F.softshrink(x, lambd=self.sparsity)              # (b, h, w//2+1, k, 2*d/k)
 
         x = torch.view_as_complex(x)                                         # (b, h, w//2+1, k, d/k)
         x = x.reshape(b, x.shape[1], x.shape[2], self.embed_dim)             # (b, h, w//2+1, d)
