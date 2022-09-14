@@ -52,7 +52,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=1e-2, device='cpu', tslag=3, spinupts=0, normalize=False):
 
     # channel size
-    x_c, y_c = 10, 10
+    x_c, y_c = 9, 9
 
     # fix the seed for reproducibility
     seed = 1024

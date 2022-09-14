@@ -80,24 +80,24 @@ class AFNONet(nn.Module):
 
         self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks, device=device, num_blocks=n_blocks, sparsity=sparsity) for i in range(depth)])
 
-#        self.pre_logits = nn.Sequential(OrderedDict([
-#            ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*16, kernel_size=(2, 2), stride=(2, 2))),
-#            ('act1', nn.Tanh()),
-#            ('conv2', nn.ConvTranspose2d(out_chans*16, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
-#            ('act2', nn.Tanh())
-#        ]))
-#        assert (patch_size % 4 == 0), f"Patch size is not divisible by 4"
-#        ks, st = patch_size//4, patch_size//4
-#        self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(ks, ks), stride=(st, st))
-
-
-        self.pre_logits = nn.Sequential(OrderedDict([
-            ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
-            ('act1', nn.Tanh())
-        ]))
-
-        # Generator head
-        self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(2, 2), stride=(2, 2))
+        if patch_size == 8:
+            self.pre_logits = nn.Sequential(OrderedDict([
+                ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*16, kernel_size=(2, 2), stride=(2, 2))),
+                ('act1', nn.Tanh()),
+                ('conv2', nn.ConvTranspose2d(out_chans*16, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
+                ('act2', nn.Tanh())
+            ]))
+            assert (patch_size % 4 == 0), f"Patch size is not divisible by 4"
+            ks, st = patch_size//4, patch_size//4
+            self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(ks, ks), stride=(st, st))
+        elif patch_size == 4:
+            self.pre_logits = nn.Sequential(OrderedDict([
+                ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
+                ('act1', nn.Tanh())
+            ]))
+    
+            # Generator head
+            self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(2, 2), stride=(2, 2))
 
     def forward(self, x):
         b = x.shape[0]                                                   # (b, in_chans, img_size[0], img_size[1])

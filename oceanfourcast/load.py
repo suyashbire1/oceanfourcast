@@ -30,8 +30,8 @@ class OceanDataset(Dataset):
             self.vmidmean = ds.VVEL.isel(Zmd000015=7, T=self.T_spinup).mean().values
             self.vmidstd = ds.VVEL.isel(Zmd000015=7, T=self.T_spinup).std().values
 
-            self.wmidmean = ds.WVEL.isel(Zld000015=7, T=self.T_spinup).mean().values
-            self.wmidstd = ds.WVEL.isel(Zld000015=7, T=self.T_spinup).std().values
+            # self.wmidmean = ds.WVEL.isel(Zld000015=7, T=self.T_spinup).mean().values
+            # self.wmidstd = ds.WVEL.isel(Zld000015=7, T=self.T_spinup).std().values
 
             self.thetasurfmean = ds.THETA.isel(Zmd000015=0, T=self.T_spinup).mean().values
             self.thetasurfstd = ds.THETA.isel(Zmd000015=0, T=self.T_spinup).std().values
@@ -55,8 +55,8 @@ class OceanDataset(Dataset):
             self.vmidmean = 0.0
             self.vmidstd = 1.0
 
-            self.wmidmean = 0.0
-            self.wmidstd = 1.0
+            # self.wmidmean = 0.0
+            # self.wmidstd = 1.0
 
             self.thetasurfmean = 0.0
             self.thetasurfstd = 1.0
@@ -91,7 +91,7 @@ class OceanDataset(Dataset):
         vmid = (self.ds.VVEL.isel(T=idx, Zmd000015=7).values.squeeze() - self.vmidmean)/self.vmidstd
         vmid = (vmid[...,:-1,:] + vmid[...,1:,:])/2
 
-        wmid = (self.ds.WVEL.isel(T=idx, Zld000015=7).values.squeeze() - self.wmidmean)/self.wmidstd
+        # wmid = (self.ds.WVEL.isel(T=idx, Zld000015=7).values.squeeze() - self.wmidmean)/self.wmidstd
 
         thetasurf = (self.ds.THETA.isel(T=idx, Zmd000015=0).values.squeeze() - self.thetasurfmean)/self.thetasurfstd
         thetamid = (self.ds.THETA.isel(T=idx, Zmd000015=7).values.squeeze() - self.thetamidmean)/self.thetamidstd
@@ -100,7 +100,8 @@ class OceanDataset(Dataset):
         Pmid = (self.ds.PHIHYD.isel(T=idx, Zmd000015=7).values.squeeze() - self.pmidmean)/self.pmidstd
         Pbot = (self.ds.PHIHYD.isel(T=idx, Zmd000015=-1).values.squeeze() - self.pbotmean)/self.pbotstd
 
-        channels = [usurf, umid, vsurf, vmid, wmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
+        # channels = [usurf, umid, vsurf, vmid, wmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
+        channels = [usurf, umid, vsurf, vmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
         data = np.vstack([channel[np.newaxis,...] for channel in channels])
         return data
 
