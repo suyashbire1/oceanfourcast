@@ -49,7 +49,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 
     return last_loss
 
-def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=1e-2, device='cpu', tslag=3, spinupts=0, normalize=False):
+def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=1e-2, device='cpu', tslag=3, spinupts=0, normalize=False, multistep=False):
 
     # channel size
     x_c, y_c = 9, 9
@@ -69,6 +69,11 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
     validation_dataset = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=tslag, normalize=normalize)
     # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
+
+    if multistep:
+        validation_dataset3 = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=3*tslag, normalize=normalize)
+        # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
+        validation_dataloader3 = DataLoader(validation_dataset3, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
 
     model = fourcastnet.AFNONet(embed_dim=embed_dims, patch_size=patch_size, sparsity=sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device).to(device)
 
@@ -98,7 +103,7 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
         running_vloss = 0.0
         for i, vdata in enumerate(validation_dataloader):
             # Load data
-            x, y = vdata[0], vdata[0]
+            x, y = vdata[0], vdata[1]
             #x = x.unsqueeze(0)
             #y = y.unsqueeze(0)
 
@@ -110,14 +115,37 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
             running_vloss += vloss
         avg_vloss = running_vloss / (i+1)
 
-        print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
 
         # Log the running loss averaged per batch
         # for both training and validation
         summarylogger.add_scalars('Training vs. Validation Loss',
                                 { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch)
-        summarylogger.flush()
 
+        if multistep:
+            running_vloss3 = 0.0
+            for i, vdata in enumerate(validation_dataloader3):
+                # Load data
+                x, y = vdata[0], vdata[1]
+                #x = x.unsqueeze(0)
+                #y = y.unsqueeze(0)
+
+                # Make predictions for this batch
+                out = model(model(model(x)))
+
+                # Compute the loss and its gradients
+                vloss = criterion(out, y)
+                running_vloss3 += vloss
+            avg_vloss3 = running_vloss3 / (i+1)
+
+            # Log the running loss averaged per batch
+            # for both training and validation
+            summarylogger.add_scalars('Training vs. Validation3 Loss',
+                                    { 'Training' : avg_loss, 'Validation' : avg_vloss3 }, epoch)
+            print(f'LOSS train: {avg_loss}, valid: {avg_vloss}, valid3: {avg_vloss3}')
+        else:
+            print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
+
+        summarylogger.flush()
 
         # Track best performance, and save the model's state
         if avg_vloss < best_vloss:
