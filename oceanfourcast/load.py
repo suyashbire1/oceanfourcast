@@ -13,7 +13,7 @@ class OceanDataset(Dataset):
         self.for_validate = for_validate
         self.tslag = tslag
 
-        ds = xr.open_dataset(self.ncfile, decode_times=False)
+        ds = xr.open_dataset(self.ncfile, decode_times=False, chunks=dict(T=10))
         self.ds = ds
         self.img_size = [ds.X.size, ds.Y.size]
         self.spinupts = spinupts

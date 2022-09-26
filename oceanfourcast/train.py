@@ -15,15 +15,15 @@ importlib.reload(load)
 importlib.reload(fourcastnet)
 
 
-def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogger):
+def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogger, device):
     running_loss = 0.
     last_loss =  0.
     for i, batch in enumerate(data_loader):
 
         # Load data
         x, y = batch[0], batch[1]
-        #x = x.unsqueeze(0)
-        #y = y.unsqueeze(0)
+        x = x.to(device)
+        y = y.to(device)
 
         # Zero gradients for every batch
         optimizer.zero_grad()
@@ -75,6 +75,7 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
         # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
         validation_dataloader3 = DataLoader(validation_dataset3, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
 
+
     model = fourcastnet.AFNONet(embed_dim=embed_dims, patch_size=patch_size, sparsity=sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device).to(device)
 
     criterion = nn.MSELoss()
@@ -95,7 +96,7 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
 
         # Make sure gradient tracking is on, and do a pass over the data
         model.train(True)
-        avg_loss = train_one_epoch(epoch, model, criterion, train_dataloader, optimizer, summarylogger)
+        avg_loss = train_one_epoch(epoch, model, criterion, train_dataloader, optimizer, summarylogger, device)
 
         # We don't need gradients on to do reporting
         model.train(False)
@@ -104,8 +105,8 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
         for i, vdata in enumerate(validation_dataloader):
             # Load data
             x, y = vdata[0], vdata[1]
-            #x = x.unsqueeze(0)
-            #y = y.unsqueeze(0)
+            x = x.to(device)
+            y = y.to(device)
 
             # Make predictions for this batch
             out = model(x)
@@ -126,8 +127,8 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
             for i, vdata in enumerate(validation_dataloader3):
                 # Load data
                 x, y = vdata[0], vdata[1]
-                #x = x.unsqueeze(0)
-                #y = y.unsqueeze(0)
+                x = x.to(device)
+                y = y.to(device)
 
                 # Make predictions for this batch
                 out = model(model(model(x)))

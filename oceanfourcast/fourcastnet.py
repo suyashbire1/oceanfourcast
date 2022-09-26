@@ -27,7 +27,7 @@ class Mlp(nn.Module):
         return x
 
 class PatchEmbed(nn.Module):
-    def __init__(self, img_size, patch_size, in_chans=20, embed_dim=768):
+    def __init__(self, img_size, patch_size, in_chans=20, embed_dim=768, device="cpu"):
         super(PatchEmbed, self).__init__()
         assert (img_size[0] % patch_size == 0 and img_size[1] % patch_size == 0), f"Input image size doesn't match model."
         self.img_size = img_size
@@ -40,7 +40,7 @@ class PatchEmbed(nn.Module):
             in_chans,
             embed_dim,
             kernel_size=patch_size,
-            stride=patch_size
+            stride=patch_size,
         )
 
     def forward(self, x):
@@ -70,9 +70,9 @@ class AFNONet(nn.Module):
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         self.norm = norm_layer(embed_dim)
 
-        self.patch_embed = PatchEmbed(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
+        self.patch_embed = PatchEmbed(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim, device=device)
 
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim).to(device))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         self.norm_layer = norm_layer(embed_dim)
