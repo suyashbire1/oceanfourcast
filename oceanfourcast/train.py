@@ -44,7 +44,8 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
             last_loss = running_loss / 10 # loss per batch
             print(f'batch {i+1}, loss: {last_loss}')
             tb_x = epoch * len(data_loader) + i + 1
-            summarylogger.add_scalar('Loss/train', last_loss, tb_x)
+            if summarylogger is not None:
+                summarylogger.add_scalar('Loss/train', last_loss, tb_x)
             running_loss = 0.
 
     return last_loss
@@ -86,7 +87,8 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
     # criterion = nn.MSELoss()
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    summarylogger = SummaryWriter(f'ofn_trainer_{timestamp}')
+    # summarylogger = SummaryWriter(f'ofn_trainer_{timestamp}')
+    summarylogger = None
 
 
     best_vloss = 1000000.
@@ -119,8 +121,9 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
 
         # Log the running loss averaged per batch
         # for both training and validation
-        summarylogger.add_scalars('Training vs. Validation Loss',
-                                { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch)
+        if summarylogger is not None:
+            summarylogger.add_scalars('Training vs. Validation Loss',
+                                    { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch)
 
         if multistep:
             running_vloss3 = 0.0
@@ -140,13 +143,15 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
 
             # Log the running loss averaged per batch
             # for both training and validation
-            summarylogger.add_scalars('Training vs. Validation3 Loss',
-                                    { 'Training' : avg_loss, 'Validation' : avg_vloss3 }, epoch)
+            if summarylogger is not None:
+                summarylogger.add_scalars('Training vs. Validation3 Loss',
+                                        { 'Training' : avg_loss, 'Validation' : avg_vloss3 }, epoch)
             print(f'LOSS train: {avg_loss}, valid: {avg_vloss}, valid3: {avg_vloss3}')
         else:
             print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
 
-        summarylogger.flush()
+        if summarylogger is not None:
+            summarylogger.flush()
 
         # Track best performance, and save the model's state
         if avg_vloss < best_vloss:
@@ -155,12 +160,13 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
             model_path = f'model_{timestamp}_{epoch}'
             torch.save(model.state_dict(), model_path)
 
-    summarylogger.add_hparams({'lr': lr, 'epochs': epochs, 'batch_size': batch_size,
-                               'embed_dims': embed_dims, 'patch_size': patch_size,
-                               'sparsity': sparsity, 'data_location': data_location},
-                              {'hparam/best_vloss': best_vloss, 'hparam/best_vloss_epoch': best_vloss_epoch})
-    summarylogger.flush()
-    summarylogger.close()
+    if summarylogger is not None:
+        summarylogger.add_hparams({'lr': lr, 'epochs': epochs, 'batch_size': batch_size,
+                                   'embed_dims': embed_dims, 'patch_size': patch_size,
+                                   'sparsity': sparsity, 'data_location': data_location},
+                                  {'hparam/best_vloss': best_vloss, 'hparam/best_vloss_epoch': best_vloss_epoch})
+        summarylogger.flush()
+        summarylogger.close()
     train_dataset.close()
     validation_dataset.close()
 
