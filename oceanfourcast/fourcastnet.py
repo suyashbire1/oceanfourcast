@@ -75,7 +75,6 @@ class AFNONet(nn.Module):
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim).to(device))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
-        self.norm_layer = norm_layer(embed_dim)
         self.dropout = nn.Dropout(p=drop_rate)
 
         self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks, device=device, num_blocks=n_blocks, sparsity=sparsity) for i in range(depth)])
@@ -145,10 +144,10 @@ class AdaptiveFourierNeuralOperator(nn.Module):
         self.block_size = self.embed_dim // self.num_blocks
 
         self.scale = 0.02
-        self.w1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size)).to(device)
-        self.w2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size)).to(device)
-        self.b1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size)).to(device)
-        self.b2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size)).to(device)
+        self.w1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size, device=device))
+        self.w2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size, device=device))
+        self.b1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, device=device))
+        self.b2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, device=device))
         self.relu = nn.ReLU()
 
         if bias:

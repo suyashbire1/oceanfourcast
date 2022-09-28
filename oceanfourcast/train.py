@@ -49,7 +49,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 
     return last_loss
 
-def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=1e-2, device='cpu', tslag=3, spinupts=0, normalize=False, multistep=False):
+def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=1e-2, device='cpu', tslag=3, spinupts=0, normalize=False, multistep=False, drop_rate=0.5):
 
     # channel size
     x_c, y_c = 9, 9
@@ -76,7 +76,7 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
         validation_dataloader3 = DataLoader(validation_dataset3, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
 
 
-    model = fourcastnet.AFNONet(embed_dim=embed_dims, patch_size=patch_size, sparsity=sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device).to(device)
+    model = fourcastnet.AFNONet(embed_dim=embed_dims, patch_size=patch_size, sparsity=sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device, drop_rate=drop_rate).to(device)
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(),lr=lr, betas=(0.9, 0.95))
