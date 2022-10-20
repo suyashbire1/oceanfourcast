@@ -102,58 +102,59 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
         model.train(False)
 
         running_vloss = 0.0
-        for i, vdata in enumerate(validation_dataloader):
-            # Load data
-            x, y = vdata[0], vdata[1]
-            x = x.to(device)
-            y = y.to(device)
-
-            # Make predictions for this batch
-            out = model(x)
-
-            # Compute the loss and its gradients
-            vloss = criterion(out, y)
-            running_vloss += vloss
-        avg_vloss = running_vloss / (i+1)
-
-
-        # Log the running loss averaged per batch
-        # for both training and validation
-        summarylogger.add_scalars('Training vs. Validation Loss',
-                                { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch)
-
-        if multistep:
-            running_vloss3 = 0.0
-            for i, vdata in enumerate(validation_dataloader3):
+        with torch.no_grad():
+            for i, vdata in enumerate(validation_dataloader):
                 # Load data
                 x, y = vdata[0], vdata[1]
                 x = x.to(device)
                 y = y.to(device)
 
                 # Make predictions for this batch
-                out = model(model(model(x)))
+                out = model(x)
 
                 # Compute the loss and its gradients
                 vloss = criterion(out, y)
-                running_vloss3 += vloss
-            avg_vloss3 = running_vloss3 / (i+1)
+                running_vloss += vloss
+            avg_vloss = running_vloss / (i+1)
+
 
             # Log the running loss averaged per batch
             # for both training and validation
-            summarylogger.add_scalars('Training vs. Validation3 Loss',
-                                    { 'Training' : avg_loss, 'Validation' : avg_vloss3 }, epoch)
-            print(f'LOSS train: {avg_loss}, valid: {avg_vloss}, valid3: {avg_vloss3}')
-        else:
-            print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
+            summarylogger.add_scalars('Training vs. Validation Loss',
+                                    { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch)
 
-        summarylogger.flush()
+            if multistep:
+                running_vloss3 = 0.0
+                for i, vdata in enumerate(validation_dataloader3):
+                    # Load data
+                    x, y = vdata[0], vdata[1]
+                    x = x.to(device)
+                    y = y.to(device)
 
-        # Track best performance, and save the model's state
-        if avg_vloss < best_vloss:
-            best_vloss = avg_vloss
-            best_vloss_epoch = epoch
-            model_path = f'model_{timestamp}_{epoch}'
-            torch.save(model.state_dict(), model_path)
+                    # Make predictions for this batch
+                    out = model(model(model(x)))
+
+                    # Compute the loss and its gradients
+                    vloss = criterion(out, y)
+                    running_vloss3 += vloss
+                avg_vloss3 = running_vloss3 / (i+1)
+
+                # Log the running loss averaged per batch
+                # for both training and validation
+                summarylogger.add_scalars('Training vs. Validation3 Loss',
+                                        { 'Training' : avg_loss, 'Validation' : avg_vloss3 }, epoch)
+                print(f'LOSS train: {avg_loss}, valid: {avg_vloss}, valid3: {avg_vloss3}')
+            else:
+                print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
+
+            summarylogger.flush()
+
+            # Track best performance, and save the model's state
+            if avg_vloss < best_vloss:
+                best_vloss = avg_vloss
+                best_vloss_epoch = epoch
+                model_path = f'model_{timestamp}_{epoch}'
+                torch.save(model.state_dict(), model_path)
 
     summarylogger.add_hparams({'lr': lr, 'epochs': epochs, 'batch_size': batch_size,
                                'embed_dims': embed_dims, 'patch_size': patch_size,

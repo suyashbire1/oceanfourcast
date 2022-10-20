@@ -32,8 +32,8 @@ class PatchEmbed(nn.Module):
         assert (img_size[0] % patch_size == 0 and img_size[1] % patch_size == 0), f"Input image size doesn't match model."
         self.img_size = img_size
         self.patch_size = patch_size
-        self.h =  img_size[0] // patch_size
-        self.w =  img_size[1] // patch_size
+        self.h = img_size[0] // patch_size
+        self.w = img_size[1] // patch_size
         self.n_patches = self.h * self.w
 
         self.proj = nn.Conv2d(
