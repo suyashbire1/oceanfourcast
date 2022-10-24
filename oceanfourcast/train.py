@@ -1,3 +1,4 @@
+import time
 import os
 import argparse
 from datetime import datetime
@@ -16,8 +17,10 @@ importlib.reload(fourcastnet)
 
 
 def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogger, device):
+    start = time.time()
     running_loss = 0.
     last_loss =  0.
+    avg_loss = 0.
     for i, batch in enumerate(data_loader):
 
         # Load data
@@ -40,6 +43,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 
         # Gather data and report
         running_loss += loss.item()
+        avg_loss += loss.item()
         if i % 10 == 9:
             last_loss = running_loss / 10 # loss per batch
             print(f'batch {i+1}, loss: {last_loss}')
@@ -47,7 +51,8 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
             summarylogger.add_scalar('Loss/train', last_loss, tb_x)
             running_loss = 0.
 
-    return last_loss
+    print(f'Time: {(time.time()-start)/60} minutes')
+    return avg_loss/(i+1)
 
 def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=1e-2, device='cpu', tslag=3, spinupts=0, normalize=False, multistep=False, drop_rate=0.5):
 
@@ -64,16 +69,17 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
     train_dataset = load.OceanDataset(data_location, spinupts=spinupts, tslag=tslag, normalize=normalize)
     h, w = train_dataset.img_size
     #train_datasampler = BatchSampler(train_dataset, batch_size= batch_size=batch_size, drop_last=True)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True)#, batch_sampler=train_datasampler)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)#, batch_sampler=train_datasampler)
 
     validation_dataset = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=tslag, normalize=normalize)
     # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
 
     if multistep:
-        validation_dataset3 = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=3*tslag, normalize=normalize)
-        # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
-        validation_dataloader3 = DataLoader(validation_dataset3, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
+#        validation_dataset3 = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=3*tslag, normalize=normalize)
+#        # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
+#        validation_dataloader3 = DataLoader(validation_dataset3, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
+        pass
 
 
     model = fourcastnet.AFNONet(embed_dim=embed_dims, patch_size=patch_size, sparsity=sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device, drop_rate=drop_rate).to(device)
@@ -124,26 +130,27 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
                                     { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch)
 
             if multistep:
-                running_vloss3 = 0.0
-                for i, vdata in enumerate(validation_dataloader3):
-                    # Load data
-                    x, y = vdata[0], vdata[1]
-                    x = x.to(device)
-                    y = y.to(device)
-
-                    # Make predictions for this batch
-                    out = model(model(model(x)))
-
-                    # Compute the loss and its gradients
-                    vloss = criterion(out, y)
-                    running_vloss3 += vloss
-                avg_vloss3 = running_vloss3 / (i+1)
-
-                # Log the running loss averaged per batch
-                # for both training and validation
-                summarylogger.add_scalars('Training vs. Validation3 Loss',
-                                        { 'Training' : avg_loss, 'Validation' : avg_vloss3 }, epoch)
-                print(f'LOSS train: {avg_loss}, valid: {avg_vloss}, valid3: {avg_vloss3}')
+#                running_vloss3 = 0.0
+#                for i, vdata in enumerate(validation_dataloader3):
+#                    # Load data
+#                    x, y = vdata[0], vdata[1]
+#                    x = x.to(device)
+#                    y = y.to(device)
+#
+#                    # Make predictions for this batch
+#                    out = model(model(model(x)))
+#
+#                    # Compute the loss and its gradients
+#                    vloss = criterion(out, y)
+#                    running_vloss3 += vloss
+#                avg_vloss3 = running_vloss3 / (i+1)
+#
+#                # Log the running loss averaged per batch
+#                # for both training and validation
+#                summarylogger.add_scalars('Training vs. Validation3 Loss',
+#                                        { 'Training' : avg_loss, 'Validation' : avg_vloss3 }, epoch)
+#                print(f'LOSS train: {avg_loss}, valid: {avg_vloss}, valid3: {avg_vloss3}')
+                pass
             else:
                 print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
 
