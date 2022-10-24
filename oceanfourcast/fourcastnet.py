@@ -67,6 +67,7 @@ class AFNONet(nn.Module):
         self.w = img_size[1] // patch_size
         num_patches = self.h*self.w
 
+        self.batch_norm = nn.BatchNorm2d(in_chans, eps=1e-6)
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         self.norm = norm_layer(embed_dim)
 
@@ -100,6 +101,7 @@ class AFNONet(nn.Module):
 
     def forward(self, x):
         b = x.shape[0]                                                   # (b, in_chans, img_size[0], img_size[1])
+        x = self.batch_norm(x)                                           # (b, in_chans, img_size[0], img_size[1])
         x = self.patch_embed(x)                                          # (b, h*w, d)
         x = x + self.pos_embed                                           # (b, h*w, d)
         x = self.pos_drop(x)                                             # (b, h*w, d)
