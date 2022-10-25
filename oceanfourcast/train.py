@@ -75,32 +75,19 @@ def main(output_dir="./",
         print(f'EPOCH {epoch}:----------------------------------------')
 
         model.train(True)
-        avg_loss = train_one_epoch(epoch, model, criterion, train_dataloader, optimizer, device, training_loss_logger)
+        avg_loss = train_one_epoch(model, criterion, train_dataloader, optimizer, device, training_loss_logger)
         model.train(False)
+        avg_vloss = validate_one_epoch(model, criterion, data_loader, device)
+        print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
+        avg_training_loss_logger.append(avg_loss)
+        validation_loss_logger.append(avg_vloss)
 
-        with torch.no_grad():
-            running_vloss = 0.0
-            for i, (x,y) in enumerate(validation_dataloader):
-                x = x.to(device)
-                y = y.to(device)
-
-                out = model(x)
-                #y = model.batch_norm(y)
-
-                vloss = criterion(out, y)
-                running_vloss += vloss
-            avg_vloss = running_vloss / (i+1)
-
-            print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
-            avg_training_loss_logger.append(avg_loss)
-            validation_loss_logger.append(avg_vloss)
-
-            # Track best performance, and save the model's state
-            if avg_vloss < best_vloss:
-                best_vloss = avg_vloss
-                best_vloss_epoch = epoch
-                model_path = f'model_{timestamp}_{epoch}'
-                torch.save(model.state_dict(), model_path)
+        # Track best performance, and save the model's state
+        if avg_vloss < best_vloss:
+            best_vloss = avg_vloss
+            best_vloss_epoch = epoch
+            model_path = f'model_{timestamp}_{epoch}'
+            torch.save(model.state_dict(), model_path)
 
         if datetime.now() > end_time:
             print('Stopping due to wallclock limit...')
@@ -137,9 +124,8 @@ def main(output_dir="./",
     train_dataset.close()
     validation_dataset.close()
 
-def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device, training_loss_logger):
+def train_one_epoch(model, criterion, data_loader, optimizer, device, training_loss_logger):
     running_loss = 0.
-    last_loss =  0.
     avg_loss = 0.
     for i, (x,y) in enumerate(data_loader):
         x = x.to(device)
@@ -166,3 +152,17 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device, tra
             running_loss = 0.
 
     return avg_loss/(i+1)
+
+def validate_one_epoch(model, criterion, data_loader, device):
+    with torch.no_grad():
+        running_vloss = 0.0
+        for i, (x,y) in enumerate(data_loader):
+            x = x.to(device)
+            y = y.to(device)
+
+            out = model(x)
+            #y = model.batch_norm(y)
+
+            vloss = criterion(out, y)
+            running_vloss += vloss
+    return running_vloss / (i+1)
