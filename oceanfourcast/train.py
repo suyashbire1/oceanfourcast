@@ -33,8 +33,8 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogg
 
         # Make predictions for this batch
         out = model(x)
-        with torch.no_grad():
-            y = model.batch_norm(y)
+        #with torch.no_grad():
+        #    y = model.batch_norm(y)
 
         # Compute the loss and its gradients
         loss = criterion(out, y)
@@ -112,7 +112,7 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
 
                 # Make predictions for this batch
                 out = model(x)
-                y = model.batch_norm(y)
+                #y = model.batch_norm(y)
 
                 # Compute the loss and its gradients
                 vloss = criterion(out, y)
