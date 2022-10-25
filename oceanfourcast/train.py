@@ -1,6 +1,7 @@
 import time
 import os
 import json
+import glob
 from datetime import datetime, timedelta
 from pathlib import Path
 import numpy as np
@@ -30,8 +31,7 @@ def main(output_dir="./",
          in_channels=9,
          out_channels=9,
          max_runtime_hours=11.5,
-         resume_from_chkpt=False,
-         chkpt_file=None
+         resume_from_chkpt=False
          ):
 
 
@@ -69,8 +69,9 @@ def main(output_dir="./",
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.95))
 
     if resume_from_chkpt:
-        print(f'Reading checkpoint {chkpt_file}...')
-        checkpoint = torch.load(os.path.join(output_dir, chkpt_file))
+        pattern = os.path.join(output_dir,"chkpt_epoch_*")
+        print(f'Reading checkpoint {pattern}...')
+        checkpoint = torch.load(get_latest_checkpoint_file(pattern))
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         begin_epoch = checkpoint['epoch'] + 1
@@ -193,3 +194,12 @@ def validate_one_epoch(model, criterion, data_loader, device):
             running_vloss += vloss
     return running_vloss / (i+1)
 
+def get_latest_checkpoint_file(pattern):
+
+    # get list of files that matches pattern
+    files = list(filter(os.path.isfile, glob.glob(pattern)))
+    # sort by modified time
+    files.sort(key=lambda x: os.path.getmtime(x))
+    # get last item in list
+    lastfile = files[-1]
+    return lastfile
