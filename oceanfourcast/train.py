@@ -29,7 +29,10 @@ def main(output_dir="./",
          drop_rate=0.5,
          in_channels=9,
          out_channels=9,
-         max_runtime_hours=11.5):
+         max_runtime_hours=11.5,
+         resume_from_chkpt=False,
+         chkpt_file=None
+         ):
 
 
     start_time = datetime.now()
@@ -65,13 +68,26 @@ def main(output_dir="./",
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.95))
 
-    training_loss_logger = []
-    avg_training_loss_logger = []
-    validation_loss_logger = []
+    if resume_from_chkpt:
+        print(f'Reading checkpoint {chkpt_file}...')
+        checkpoint = torch.load(os.path.join(output_dir, chkpt_file))
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        begin_epoch = checkpoint['epoch'] + 1
+        best_vloss = checkpoint['best_vloss']
+        best_vloss_epoch = checkpoint['best_vloss_epoch']
+        training_loss_logger = checkpoint['training_loss_logger']
+        avg_training_loss_logger = checkpoint['avg_training_loss_logger']
+        validation_loss_logger = checkpoint['validation_loss_logger']
+    else:
+        begin_epoch = 1
+        training_loss_logger = []
+        avg_training_loss_logger = []
+        validation_loss_logger = []
+        best_vloss = 1000000.
+        best_vloss_epoch = 1
 
-    best_vloss = 1000000.
-    best_vloss_epoch = 1
-    for epoch in range(1, epochs+1):
+    for epoch in range(begin_epoch, epochs+1):
         print(f'EPOCH {epoch}:----------------------------------------')
 
         model.train(True)
@@ -90,7 +106,17 @@ def main(output_dir="./",
             torch.save(model.state_dict(), model_path)
 
         if datetime.now() > end_time:
-            print('Stopping due to wallclock limit...')
+            print('Stopping due to wallclock limit. Saving checkpoint')
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_vloss': best_vloss,
+                'best_vloss_epoch': best_vloss_epoch,
+                'training_loss_logger': training_loss_logger,
+                'avg_training_loss_logger': avg_training_loss_logger,
+                'validation_loss_logger': validation_loss_logger},
+                       os.path.join(output_dir,f"chkpt_epoch_{epoch}"))
             break
 
     print('Writing logs...')
@@ -166,3 +192,4 @@ def validate_one_epoch(model, criterion, data_loader, device):
             vloss = criterion(out, y)
             running_vloss += vloss
     return running_vloss / (i+1)
+
