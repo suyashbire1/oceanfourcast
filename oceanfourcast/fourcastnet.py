@@ -27,17 +27,17 @@ class Mlp(nn.Module):
         return x
 
 class PatchEmbed(nn.Module):
-    def __init__(self, img_size, patch_size, in_chans=20, embed_dim=768, device="cpu"):
+    def __init__(self, img_size, patch_size, in_channels=20, embed_dim=768, device="cpu"):
         super(PatchEmbed, self).__init__()
         assert (img_size[0] % patch_size == 0 and img_size[1] % patch_size == 0), f"Input image size doesn't match model."
         self.img_size = img_size
         self.patch_size = patch_size
-        self.h =  img_size[0] // patch_size
-        self.w =  img_size[1] // patch_size
+        self.h = img_size[0] // patch_size
+        self.w = img_size[1] // patch_size
         self.n_patches = self.h * self.w
 
         self.proj = nn.Conv2d(
-            in_chans,
+            in_channels,
             embed_dim,
             kernel_size=patch_size,
             stride=patch_size,
@@ -51,7 +51,7 @@ class PatchEmbed(nn.Module):
 
 
 class AFNONet(nn.Module):
-    def __init__(self, embed_dim=256, n_blocks=8, sparsity=1e-2, img_size = None, in_chans=20, out_chans=20,
+    def __init__(self, embed_dim=256, n_blocks=8, sparsity=1e-2, img_size = None, in_channels=20, out_channels=20,
                  mlp_ratio=4.,  drop_rate=0.5, norm_layer=None, depth=12, patch_size=8, use_blocks=True,
                  device='cpu'):
 
@@ -67,15 +67,15 @@ class AFNONet(nn.Module):
         self.w = img_size[1] // patch_size
         num_patches = self.h*self.w
 
+        self.batch_norm = nn.BatchNorm2d(in_channels, eps=1e-6)
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         self.norm = norm_layer(embed_dim)
 
-        self.patch_embed = PatchEmbed(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim, device=device)
+        self.patch_embed = PatchEmbed(img_size=img_size, patch_size=patch_size, in_channels=in_channels, embed_dim=embed_dim, device=device)
 
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim).to(device))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
-        self.norm_layer = norm_layer(embed_dim)
         self.dropout = nn.Dropout(p=drop_rate)
 
         self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks, device=device, num_blocks=n_blocks, sparsity=sparsity) for i in range(depth)])
@@ -95,12 +95,20 @@ class AFNONet(nn.Module):
                 ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
                 ('act1', nn.Tanh())
             ]))
-    
+
             # Generator head
             self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(2, 2), stride=(2, 2))
 
+    def inv_batch_norm(self, x):
+        stdev = torch.unsqueeze(torch.unsqueeze(torch.sqrt(self.batch_norm.running_var), -1), -1) + self.batch_norm.eps
+        mean = torch.unsqueeze(torch.unsqueeze(self.batch_norm.running_mean, -1), -1)
+        wt = torch.unsqueeze(torch.unsqueeze(self.batch_norm.weight, -1), -1)
+        bias = torch.unsqueeze(torch.unsqueeze(self.batch_norm.bias, -1), -1)
+        return (x-bias)*stdev/wt + mean
+
     def forward(self, x):
-        b = x.shape[0]                                                   # (b, in_chans, img_size[0], img_size[1])
+        b = x.shape[0]                                                   # (b, in_channels, img_size[0], img_size[1])
+        x = self.batch_norm(x)                                           # (b, in_channels, img_size[0], img_size[1])
         x = self.patch_embed(x)                                          # (b, h*w, d)
         x = x + self.pos_embed                                           # (b, h*w, d)
         x = self.pos_drop(x)                                             # (b, h*w, d)
@@ -111,6 +119,8 @@ class AFNONet(nn.Module):
         x = self.dropout(x)                                              # (b, d, h, w)
         x = self.pre_logits(x)                                           # (b, out_chans*4, h*4, w*4)                        # hard-coded!
         x = self.head(x)                                                 # (b, out_chans, h*patch_size, w*patch_size)        # hard-coded!
+        with torch.no_grad():
+            x = self.inv_batch_norm(x)                                   # (b, out_chans, h*patch_size, w*patch_size)
         return x
 
 
@@ -145,10 +155,10 @@ class AdaptiveFourierNeuralOperator(nn.Module):
         self.block_size = self.embed_dim // self.num_blocks
 
         self.scale = 0.02
-        self.w1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size)).to(device)
-        self.w2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size)).to(device)
-        self.b1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size)).to(device)
-        self.b2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size)).to(device)
+        self.w1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size, device=device))
+        self.w2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size, device=device))
+        self.b1 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, device=device))
+        self.b2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, device=device))
         self.relu = nn.ReLU()
 
         if bias:

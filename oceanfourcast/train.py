@@ -1,59 +1,41 @@
+import time
 import os
-import argparse
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from torch.utils.data import BatchSampler, DataLoader
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader
 from functools import partial
 from oceanfourcast import load, fourcastnet
 import importlib
 importlib.reload(load)
 importlib.reload(fourcastnet)
 
+def main(output_dir="./",
+         data_location=None,
+         epochs=5,
+         batch_size=5,
+         learning_rate=5e-4,
+         embed_dims=256,
+         patch_size=8,
+         sparsity=1e-2,
+         device='cpu',
+         tslag=3,
+         spinupts=0,
+         normalize=False,
+         drop_rate=0.5,
+         in_channels=9,
+         out_channels=9,
+         max_runtime_hours=11.5):
 
-def train_one_epoch(epoch, model, criterion, data_loader, optimizer, summarylogger, device):
-    running_loss = 0.
-    last_loss =  0.
-    for i, batch in enumerate(data_loader):
 
-        # Load data
-        x, y = batch[0], batch[1]
-        x = x.to(device)
-        y = y.to(device)
+    start_time = datetime.now()
+    end_time = start_time + timedelta(hours=max_runtime_hours)
 
-        # Zero gradients for every batch
-        optimizer.zero_grad()
-
-        # Make predictions for this batch
-        out = model(x)
-
-        # Compute the loss and its gradients
-        loss = criterion(out, y)
-        loss.backward()
-
-        # Adjust learning weights
-        optimizer.step()
-
-        # Gather data and report
-        running_loss += loss.item()
-        if i % 10 == 9:
-            last_loss = running_loss / 10 # loss per batch
-            print(f'batch {i+1}, loss: {last_loss}')
-            tb_x = epoch * len(data_loader) + i + 1
-            if summarylogger is not None:
-                summarylogger.add_scalar('Loss/train', last_loss, tb_x)
-            running_loss = 0.
-
-    return last_loss
-
-def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, patch_size=8, sparsity=1e-2, device='cpu', tslag=3, spinupts=0, normalize=False, multistep=False):
-
-    # channel size
-    x_c, y_c = 9, 9
+    print(start_time.strftime('%Y%m%d_%H%M%S'))
 
     # fix the seed for reproducibility
     seed = 1024
@@ -62,135 +44,125 @@ def main(data_location=None, epochs=5, batch_size=5, lr=5e-4, embed_dims=256, pa
 
     if data_location is None:
         data_location = "/home/suyash/Documents/data/"
+
     train_dataset = load.OceanDataset(data_location, spinupts=spinupts, tslag=tslag, normalize=normalize)
     h, w = train_dataset.img_size
-    #train_datasampler = BatchSampler(train_dataset, batch_size= batch_size=batch_size, drop_last=True)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True)#, batch_sampler=train_datasampler)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
     validation_dataset = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=tslag, normalize=normalize)
-    # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
+    validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)
 
-    if multistep:
-        validation_dataset3 = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=3*tslag, normalize=normalize)
-        # validation_datasampler = BatchSampler(validation_dataset, batch_size=2, drop_last=True)
-        validation_dataloader3 = DataLoader(validation_dataset3, batch_size=batch_size, drop_last=True)#, batch_sampler=validation_datasampler)
-
-
-    model = fourcastnet.AFNONet(embed_dim=embed_dims, patch_size=patch_size, sparsity=sparsity, img_size=[h, w], in_chans=x_c, out_chans=y_c, norm_layer=partial(nn.LayerNorm, eps=1e-6), device=device).to(device)
+    model = fourcastnet.AFNONet(embed_dim=embed_dims,
+                                patch_size=patch_size,
+                                sparsity=sparsity,
+                                img_size=[h, w],
+                                in_channels=in_channels,
+                                out_channels=out_channels,
+                                norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                                device=device,
+                                drop_rate=drop_rate).to(device)
 
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(),lr=lr, betas=(0.9, 0.95))
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.95))
 
-    # optimizer = torch.optim.AdamW(lr=lr, betas=(0.9, 0.95))
-    # loss_scaler = torch.cpu.amp.GradScaler(enabled=True)
-    # criterion = nn.MSELoss()
-
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    # summarylogger = SummaryWriter(f'ofn_trainer_{timestamp}')
-    summarylogger = None
-
+    training_loss_logger = []
+    avg_training_loss_logger = []
+    validation_loss_logger = []
 
     best_vloss = 1000000.
     best_vloss_epoch = 1
     for epoch in range(1, epochs+1):
-        print(f'EPOCH {epoch}:')
+        print(f'EPOCH {epoch}:----------------------------------------')
 
-        # Make sure gradient tracking is on, and do a pass over the data
         model.train(True)
-        avg_loss = train_one_epoch(epoch, model, criterion, train_dataloader, optimizer, summarylogger, device)
-
-        # We don't need gradients on to do reporting
+        avg_loss = train_one_epoch(epoch, model, criterion, train_dataloader, optimizer, device, training_loss_logger)
         model.train(False)
 
-        running_vloss = 0.0
-        for i, vdata in enumerate(validation_dataloader):
-            # Load data
-            x, y = vdata[0], vdata[1]
-            x = x.to(device)
-            y = y.to(device)
-
-            # Make predictions for this batch
-            out = model(x)
-
-            # Compute the loss and its gradients
-            vloss = criterion(out, y)
-            running_vloss += vloss
-        avg_vloss = running_vloss / (i+1)
-
-
-        # Log the running loss averaged per batch
-        # for both training and validation
-        if summarylogger is not None:
-            summarylogger.add_scalars('Training vs. Validation Loss',
-                                    { 'Training' : avg_loss, 'Validation' : avg_vloss }, epoch)
-
-        if multistep:
-            running_vloss3 = 0.0
-            for i, vdata in enumerate(validation_dataloader3):
-                # Load data
-                x, y = vdata[0], vdata[1]
+        with torch.no_grad():
+            running_vloss = 0.0
+            for i, (x,y) in enumerate(validation_dataloader):
                 x = x.to(device)
                 y = y.to(device)
 
-                # Make predictions for this batch
-                out = model(model(model(x)))
+                out = model(x)
+                #y = model.batch_norm(y)
 
-                # Compute the loss and its gradients
                 vloss = criterion(out, y)
-                running_vloss3 += vloss
-            avg_vloss3 = running_vloss3 / (i+1)
+                running_vloss += vloss
+            avg_vloss = running_vloss / (i+1)
 
-            # Log the running loss averaged per batch
-            # for both training and validation
-            if summarylogger is not None:
-                summarylogger.add_scalars('Training vs. Validation3 Loss',
-                                        { 'Training' : avg_loss, 'Validation' : avg_vloss3 }, epoch)
-            print(f'LOSS train: {avg_loss}, valid: {avg_vloss}, valid3: {avg_vloss3}')
-        else:
             print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
+            avg_training_loss_logger.append(avg_loss)
+            validation_loss_logger.append(avg_vloss)
 
-        if summarylogger is not None:
-            summarylogger.flush()
+            # Track best performance, and save the model's state
+            if avg_vloss < best_vloss:
+                best_vloss = avg_vloss
+                best_vloss_epoch = epoch
+                model_path = f'model_{timestamp}_{epoch}'
+                torch.save(model.state_dict(), model_path)
 
-        # Track best performance, and save the model's state
-        if avg_vloss < best_vloss:
-            best_vloss = avg_vloss
-            best_vloss_epoch = epoch
-            model_path = f'model_{timestamp}_{epoch}'
-            torch.save(model.state_dict(), model_path)
+        if datetime.now() > end_time:
+            print('Stopping due to wallclock limit...')
+            break
 
-    if summarylogger is not None:
-        summarylogger.add_hparams({'lr': lr, 'epochs': epochs, 'batch_size': batch_size,
-                                   'embed_dims': embed_dims, 'patch_size': patch_size,
-                                   'sparsity': sparsity, 'data_location': data_location},
-                                  {'hparam/best_vloss': best_vloss, 'hparam/best_vloss_epoch': best_vloss_epoch})
-        summarylogger.flush()
-        summarylogger.close()
+    print('Writing logs...')
+
+    logfile_data = dict(
+        data_location=data_location,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        embed_dims=embed_dims,
+        patch_size=patch_size,
+        sparsity=sparsity,
+        device=device,
+        tslag=tslag,
+        spinupts=spinupts,
+        normalize=normalize,
+        drop_rate=drop_rate,
+        in_channels=in_channels,
+        out_channels=out_channels,
+        best_vloss=best_vloss,
+        best_vloss_epoch=best_vloss_epoch,
+        runtime=str(datetime.now() - start_time),
+        training_loss = training_loss_logger,
+        avg_training_loss = avg_training_loss_logger,
+        validation_loss = validation_loss_logger
+    )
+
+    with open(os.path.join(output_dir,"logfile.json"), "w") as f:
+        f.write(json.dumps(logfile_data))
+
     train_dataset.close()
     validation_dataset.close()
 
+def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device, training_loss_logger):
+    running_loss = 0.
+    last_loss =  0.
+    avg_loss = 0.
+    for i, (x,y) in enumerate(data_loader):
+        x = x.to(device)
+        y = y.to(device)
 
-if __name__ == '__main__':
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    else:
-        device = "cpu"
+        optimizer.zero_grad()
 
-    args =      ["epochs", "data_location",   "batch_size", "learning_rate", "embed_dims", "patch_size", "sparsity"]
-    types =     ["int",    "str",             "int",        "float",         "int",        "int",        "float"]
-    defaults =  [20,       "run8/dynDiag.nc", 10,           5e-4,            256,          8,            0.]
-    parser = argparse.ArgumentParser()
+        out = model(x)
+        #with torch.no_grad():
+        #    y = model.batch_norm(y)
 
-    for arg, type_, default_ in zip(args, types, defaults):
-        parser.add_argument("--"+arg, type=type_, default=default_)
+        loss = criterion(out, y)
+        loss.backward()
 
-    # main(epochs=20, data_location="/nobackup1c/users/bire/ofn/")
-    main(data_location=args.data_location,
-         epochs=args.epochs,
-         batch_size=args.batch_size,
-         lr=args.learning_rate,
-         embed_dims=args.embed_dims,
-         patch_size=args.patch_size,
-         sparsity=args.sparsity,
-         device=device)
+        optimizer.step()
+
+        # Gather data and report
+        running_loss += loss.item()
+        avg_loss += loss.item()
+        if i % 10 == 9:
+            last_loss = running_loss / 10 # loss per batch
+            training_loss_logger.append(last_loss)
+            print(f'batch {i+1}, loss: {last_loss}')
+            running_loss = 0.
+
+    return avg_loss/(i+1)
