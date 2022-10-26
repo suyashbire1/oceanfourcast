@@ -119,7 +119,7 @@ class AFNONet(nn.Module):
         x = self.dropout(x)                                              # (b, d, h, w)
         x = self.pre_logits(x)                                           # (b, out_channels*4, h*4, w*4)                        # hard-coded!
         x = self.head(x)                                                 # (b, out_channels, h*patch_size, w*patch_size)        # hard-coded!
-        x = self.inv_batch_norm(x)                                       # (b, out_channels, h*patch_size, w*patch_size)
+        # x = self.inv_batch_norm(x)                                       # (b, out_channels, h*patch_size, w*patch_size)
         return x
 
 

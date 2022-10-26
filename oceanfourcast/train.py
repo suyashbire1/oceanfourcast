@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from functools import partial
-from oceanfourcast import load, fourcastnet
+from oceanfourcast import load2 as load, fourcastnet
 import importlib
 importlib.reload(load)
 importlib.reload(fourcastnet)
@@ -26,7 +26,6 @@ def main(output_dir="./",
          device='cpu',
          tslag=3,
          spinupts=0,
-         normalize=False,
          drop_rate=0.5,
          in_channels=9,
          out_channels=9,
@@ -48,11 +47,11 @@ def main(output_dir="./",
     if data_location is None:
         data_location = "/home/suyash/Documents/data/"
 
-    train_dataset = load.OceanDataset(data_location, spinupts=spinupts, tslag=tslag, normalize=normalize)
+    train_dataset = load.OceanDataset(data_location, spinupts=spinupts, tslag=tslag)
     h, w = train_dataset.img_size
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
-    validation_dataset = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=tslag, normalize=normalize)
+    validation_dataset = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=tslag)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)
 
     model = fourcastnet.AFNONet(embed_dim=embed_dims,
@@ -112,21 +111,22 @@ def main(output_dir="./",
             torch.save(model.state_dict(), model_path)
 
         if datetime.now() > end_time:
-            print('Stopping due to wallclock limit. Saving checkpoint...')
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'best_vloss': best_vloss,
-                'best_vloss_epoch': best_vloss_epoch,
-                'training_loss_logger': training_loss_logger,
-                'avg_training_loss_logger': avg_training_loss_logger,
-                'validation_loss_logger': validation_loss_logger},
-                       os.path.join(output_dir,f"chkpt_epoch_{epoch}"))
+            print('Stopping due to wallclock limit...')
             break
 
-    print('Writing logs...')
+    print('Saving checkpoint...')
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'best_vloss': best_vloss,
+        'best_vloss_epoch': best_vloss_epoch,
+        'training_loss_logger': training_loss_logger,
+        'avg_training_loss_logger': avg_training_loss_logger,
+        'validation_loss_logger': validation_loss_logger},
+               os.path.join(output_dir,f"chkpt_epoch_{epoch}"))
 
+    print('Writing logs...')
     logfile_data = dict(
         data_location=data_location,
         epochs=epochs,
@@ -138,7 +138,6 @@ def main(output_dir="./",
         device=device,
         tslag=tslag,
         spinupts=spinupts,
-        normalize=normalize,
         drop_rate=drop_rate,
         in_channels=in_channels,
         out_channels=out_channels,
@@ -166,8 +165,8 @@ def train_one_epoch(model, criterion, data_loader, optimizer, device, training_l
         optimizer.zero_grad()
 
         out = model(x)
-        #with torch.no_grad():
-        #    y = model.batch_norm(y)
+        with torch.no_grad():
+            y = model.batch_norm(y)
 
         loss = criterion(out, y)
         loss.backward()
@@ -193,7 +192,7 @@ def validate_one_epoch(model, criterion, data_loader, device):
             y = y.to(device)
 
             out = model(x)
-            #y = model.batch_norm(y)
+            y = model.batch_norm(y)
 
             vloss = criterion(out, y)
             running_vloss += vloss.item()
