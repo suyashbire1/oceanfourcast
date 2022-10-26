@@ -38,7 +38,7 @@ def main(output_dir="./",
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
 
-    print(start_time.strftime('%Y%m%d_%H%M%S'))
+    print(f'Run started on ', start_time.strftime('%Y%m%d_%H%M%S'))
 
     # fix the seed for reproducibility
     seed = 1024
@@ -66,12 +66,13 @@ def main(output_dir="./",
                                 drop_rate=drop_rate).to(device)
 
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.95))
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.95))
 
     if resume_from_chkpt:
         pattern = os.path.join(output_dir,"chkpt_epoch_*")
-        print(f'Reading checkpoint {pattern}...')
-        checkpoint = torch.load(get_latest_checkpoint_file(pattern))
+        chkpt_file = get_latest_checkpoint_file(pattern)
+        print(f'Resuming from checkpoint {chkpt_file}...')
+        checkpoint = torch.load(chkpt_file)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         begin_epoch = checkpoint['epoch'] + 1
@@ -89,13 +90,17 @@ def main(output_dir="./",
         best_vloss_epoch = 1
 
     for epoch in range(begin_epoch, epochs+1):
-        print(f'EPOCH {epoch}:----------------------------------------')
+        epoch_start_time = datetime.now()
+        print(f'EPOCH {epoch}:-----------------------------------------------------------')
 
         model.train(True)
+        print('Training...')
         avg_loss = train_one_epoch(model, criterion, train_dataloader, optimizer, device, training_loss_logger)
         model.train(False)
-        avg_vloss = validate_one_epoch(model, criterion, data_loader, device)
+        print('Validating...')
+        avg_vloss = validate_one_epoch(model, criterion, validation_dataloader, device)
         print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
+        print(f'Epoch evaluation time: {(datetime.now()-epoch_start_time)}')
         avg_training_loss_logger.append(avg_loss)
         validation_loss_logger.append(avg_vloss)
 
@@ -103,11 +108,11 @@ def main(output_dir="./",
         if avg_vloss < best_vloss:
             best_vloss = avg_vloss
             best_vloss_epoch = epoch
-            model_path = f'model_{timestamp}_{epoch}'
+            model_path = f'model_epoch_{epoch}'
             torch.save(model.state_dict(), model_path)
 
         if datetime.now() > end_time:
-            print('Stopping due to wallclock limit. Saving checkpoint')
+            print('Stopping due to wallclock limit. Saving checkpoint...')
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -146,7 +151,7 @@ def main(output_dir="./",
     )
 
     with open(os.path.join(output_dir,"logfile.json"), "w") as f:
-        f.write(json.dumps(logfile_data))
+        f.write(json.dumps(logfile_data, indent=4))
 
     train_dataset.close()
     validation_dataset.close()
@@ -191,7 +196,7 @@ def validate_one_epoch(model, criterion, data_loader, device):
             #y = model.batch_norm(y)
 
             vloss = criterion(out, y)
-            running_vloss += vloss
+            running_vloss += vloss.item()
     return running_vloss / (i+1)
 
 def get_latest_checkpoint_file(pattern):

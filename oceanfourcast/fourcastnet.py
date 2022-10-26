@@ -82,22 +82,22 @@ class AFNONet(nn.Module):
 
         if patch_size == 8:
             self.pre_logits = nn.Sequential(OrderedDict([
-                ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*16, kernel_size=(2, 2), stride=(2, 2))),
+                ('conv1', nn.ConvTranspose2d(embed_dim, out_channels*16, kernel_size=(2, 2), stride=(2, 2))),
                 ('act1', nn.Tanh()),
-                ('conv2', nn.ConvTranspose2d(out_chans*16, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
+                ('conv2', nn.ConvTranspose2d(out_channels*16, out_channels*4, kernel_size=(2, 2), stride=(2, 2))),
                 ('act2', nn.Tanh())
             ]))
             assert (patch_size % 4 == 0), f"Patch size is not divisible by 4"
             ks, st = patch_size//4, patch_size//4
-            self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(ks, ks), stride=(st, st))
+            self.head = nn.ConvTranspose2d(out_channels*4, out_channels, kernel_size=(ks, ks), stride=(st, st))
         elif patch_size == 4:
             self.pre_logits = nn.Sequential(OrderedDict([
-                ('conv1', nn.ConvTranspose2d(embed_dim, out_chans*4, kernel_size=(2, 2), stride=(2, 2))),
+                ('conv1', nn.ConvTranspose2d(embed_dim, out_channels*4, kernel_size=(2, 2), stride=(2, 2))),
                 ('act1', nn.Tanh())
             ]))
 
             # Generator head
-            self.head = nn.ConvTranspose2d(out_chans*4, out_chans, kernel_size=(2, 2), stride=(2, 2))
+            self.head = nn.ConvTranspose2d(out_channels*4, out_channels, kernel_size=(2, 2), stride=(2, 2))
 
     def inv_batch_norm(self, x):
         stdev = torch.unsqueeze(torch.unsqueeze(torch.sqrt(self.batch_norm.running_var), -1), -1) + self.batch_norm.eps
@@ -117,10 +117,9 @@ class AFNONet(nn.Module):
         x = self.norm(x).transpose(1,2)                                  # (b, d, h*w)
         x = torch.reshape(x, [-1, self.embed_dim, self.h, self.w])       # (b, d, h, w)
         x = self.dropout(x)                                              # (b, d, h, w)
-        x = self.pre_logits(x)                                           # (b, out_chans*4, h*4, w*4)                        # hard-coded!
-        x = self.head(x)                                                 # (b, out_chans, h*patch_size, w*patch_size)        # hard-coded!
-        with torch.no_grad():
-            x = self.inv_batch_norm(x)                                   # (b, out_chans, h*patch_size, w*patch_size)
+        x = self.pre_logits(x)                                           # (b, out_channels*4, h*4, w*4)                        # hard-coded!
+        x = self.head(x)                                                 # (b, out_channels, h*patch_size, w*patch_size)        # hard-coded!
+        x = self.inv_batch_norm(x)                                       # (b, out_channels, h*patch_size, w*patch_size)
         return x
 
 
