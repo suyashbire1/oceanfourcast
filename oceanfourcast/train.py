@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from functools import partial
-from oceanfourcast import load2 as load, fourcastnet
+from oceanfourcast import load, fourcastnet
 import importlib
 importlib.reload(load)
 importlib.reload(fourcastnet)
