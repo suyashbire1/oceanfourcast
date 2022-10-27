@@ -19,5 +19,5 @@ scp name@servername.com:/path/to/file/mitgcm/double_gyre/run3/dynDiag.nc data/pr
 
 ## Train
 ```
-python train.py
+python oceanfourcast/train.py --data_file "data/processed/dynDiag_subset.nc" --batch_size 2
 ```

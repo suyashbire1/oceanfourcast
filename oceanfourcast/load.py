@@ -5,15 +5,13 @@ import xarray as xr
 import numpy as np
 
 class OceanDataset(Dataset):
-    def __init__(self, data_dir, transform=None, target_transform=None, for_validate=False, tslag=3, spinupts=0):
-        self.data_dir = data_dir
+    def __init__(self, data_file, transform=None, target_transform=None, for_validate=False, tslag=3, spinupts=0):
         self.transform = transform
         self.target_transform = target_transform
-        self.ncfile = os.path.join(self.data_dir + "dynDiag.nc")
         self.for_validate = for_validate
         self.tslag = tslag
 
-        ds = xr.open_dataset(self.ncfile, decode_times=False)#, chunks=dict(T=10))
+        ds = xr.open_dataset(data_file, decode_times=False)#, chunks=dict(T=10))
         self.ds = ds
         self.img_size = [ds.X.size, ds.Y.size]
         self.spinupts = spinupts

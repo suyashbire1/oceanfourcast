@@ -19,7 +19,7 @@ importlib.reload(fourcastnet)
 
 @click.command()
 @click.option("--output_dir", default="./")
-@click.option("--data_location", default=None)
+@click.option("--data_file", default=None)
 @click.option("--epochs", default=5)
 @click.option("--batch_size", default=5)
 @click.option("--learning_rate", default=5e-4)
@@ -34,29 +34,32 @@ importlib.reload(fourcastnet)
 @click.option("--out_channels", default=9)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
-def main(output_dir, data_location, epochs, batch_size,
+@click.option("--affine_batchnorm", default=True)
+def main(output_dir, data_file, epochs, batch_size,
     learning_rate, embed_dims, patch_size, sparsity,
     device, tslag, spinupts, drop_rate, in_channels,
-    out_channels, max_runtime_hours, resume_from_chkpt):
+    out_channels, max_runtime_hours, resume_from_chkpt,
+    affine_batchnorm):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
 
     print(f'Run started on ', start_time.strftime('%Y%m%d_%H%M%S'))
 
+    os.makedirs(output_dir, exist_ok=True)
+
     # fix the seed for reproducibility
     seed = 1024
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    if data_location is None:
-        data_location = "/home/suyash/Documents/data/"
+    assert data_file is not None
 
-    train_dataset = load.OceanDataset(data_location, spinupts=spinupts, tslag=tslag)
+    train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
     h, w = train_dataset.img_size
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
-    validation_dataset = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=tslag)
+    validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)
 
     model = fourcastnet.AFNONet(embed_dim=embed_dims,
@@ -67,6 +70,7 @@ def main(output_dir, data_location, epochs, batch_size,
                                 out_channels=out_channels,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
                                 device=device,
+                                affine_batchnorm=affine_batchnorm,
                                 drop_rate=drop_rate).to(device)
 
     criterion = nn.MSELoss()
@@ -133,7 +137,7 @@ def main(output_dir, data_location, epochs, batch_size,
 
     print('Writing logs...')
     logfile_data = dict(
-        data_location=data_location,
+        data_file=data_file,
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
@@ -148,6 +152,7 @@ def main(output_dir, data_location, epochs, batch_size,
         out_channels=out_channels,
         best_vloss=best_vloss,
         best_vloss_epoch=best_vloss_epoch,
+        affine_batchnorm=affine_batchnorm,
         runtime=str(datetime.now() - start_time),
         training_loss = training_loss_logger,
         avg_training_loss = avg_training_loss_logger,

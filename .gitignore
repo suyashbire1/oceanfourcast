@@ -1,3 +1,7 @@
 data/*
 *.egg-info
 __pycache__
+
+chkpt_*
+logfile*
+model_epoch*
