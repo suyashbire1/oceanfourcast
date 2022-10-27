@@ -30,7 +30,8 @@ def main(output_dir="./",
          in_channels=9,
          out_channels=9,
          max_runtime_hours=11.5,
-         resume_from_chkpt=False
+         resume_from_chkpt=False,
+         affine_batchnorm=True
          ):
 
 
@@ -38,6 +39,8 @@ def main(output_dir="./",
     end_time = start_time + timedelta(hours=max_runtime_hours)
 
     print(f'Run started on ', start_time.strftime('%Y%m%d_%H%M%S'))
+
+    os.makedirs(output_dir, exist_ok=True)
 
     # fix the seed for reproducibility
     seed = 1024
@@ -61,6 +64,7 @@ def main(output_dir="./",
                                 out_channels=out_channels,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
                                 device=device,
+                                affine_batchnorm=affine_batchnorm,
                                 drop_rate=drop_rate).to(device)
 
     criterion = nn.MSELoss()
@@ -142,6 +146,7 @@ def main(output_dir="./",
         out_channels=out_channels,
         best_vloss=best_vloss,
         best_vloss_epoch=best_vloss_epoch,
+        affine_batchnorm=affine_batchnorm,
         runtime=str(datetime.now() - start_time),
         training_loss = training_loss_logger,
         avg_training_loss = avg_training_loss_logger,
