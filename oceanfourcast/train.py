@@ -16,7 +16,7 @@ importlib.reload(load)
 importlib.reload(fourcastnet)
 
 def main(output_dir="./",
-         data_location=None,
+         data_file=None,
          epochs=5,
          batch_size=5,
          learning_rate=5e-4,
@@ -44,14 +44,13 @@ def main(output_dir="./",
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    if data_location is None:
-        data_location = "/home/suyash/Documents/data/"
+    assert data_file is not None
 
-    train_dataset = load.OceanDataset(data_location, spinupts=spinupts, tslag=tslag)
+    train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
     h, w = train_dataset.img_size
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
-    validation_dataset = load.OceanDataset(data_location, for_validate=True, spinupts=spinupts, tslag=tslag)
+    validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)
 
     model = fourcastnet.AFNONet(embed_dim=embed_dims,
@@ -128,7 +127,7 @@ def main(output_dir="./",
 
     print('Writing logs...')
     logfile_data = dict(
-        data_location=data_location,
+        data_file=data_file,
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
