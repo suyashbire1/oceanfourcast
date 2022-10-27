@@ -10,7 +10,6 @@ setup(
     license='MIT',
     packages=['oceanfourcast'],
     install_requires=['torch',
-                      'tensorboard',
                       'numpy',
                       'xarray',
                       ],
