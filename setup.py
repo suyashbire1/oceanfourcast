@@ -13,6 +13,8 @@ setup(
                       'tensorboard',
                       'numpy',
                       'xarray',
+                      'click',
+                      'netcdf4',
                       ],
 
     classifiers=[

@@ -2,6 +2,8 @@ import time
 import os
 import json
 import glob
+import argparse
+import click
 from datetime import datetime, timedelta
 from pathlib import Path
 import numpy as np
@@ -15,24 +17,27 @@ import importlib
 importlib.reload(load)
 importlib.reload(fourcastnet)
 
-def main(output_dir="./",
-         data_location=None,
-         epochs=5,
-         batch_size=5,
-         learning_rate=5e-4,
-         embed_dims=256,
-         patch_size=8,
-         sparsity=1e-2,
-         device='cpu',
-         tslag=3,
-         spinupts=0,
-         drop_rate=0.5,
-         in_channels=9,
-         out_channels=9,
-         max_runtime_hours=11.5,
-         resume_from_chkpt=False
-         ):
-
+@click.command()
+@click.option("--output_dir", default="./")
+@click.option("--data_location", default=None)
+@click.option("--epochs", default=5)
+@click.option("--batch_size", default=5)
+@click.option("--learning_rate", default=5e-4)
+@click.option("--embed_dims", default=256)
+@click.option("--patch_size", default=8)
+@click.option("--sparsity", default=1e-2)
+@click.option("--device", default='cpu')
+@click.option("--tslag", default=3)
+@click.option("--spinupts", default=0)
+@click.option("--drop_rate", default=0.5)
+@click.option("--in_channels", default=9)
+@click.option("--out_channels", default=9)
+@click.option("--max_runtime_hours", default=11.5)
+@click.option("--resume_from_chkpt", default=False)
+def main(output_dir, data_location, epochs, batch_size,
+    learning_rate, embed_dims, patch_size, sparsity,
+    device, tslag, spinupts, drop_rate, in_channels,
+    out_channels, max_runtime_hours, resume_from_chkpt):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -207,3 +212,6 @@ def get_latest_checkpoint_file(pattern):
     # get last item in list
     lastfile = files[-1]
     return lastfile
+
+if __name__ == "__main__":
+    main()
