@@ -30,7 +30,7 @@ importlib.reload(fourcastnet)
 @click.option("--tslag", default=3)
 @click.option("--spinupts", default=0)
 @click.option("--drop_rate", default=0.5)
-@click.option("--in_channels", default=9)
+#@click.option("--in_channels", default=9)
 @click.option("--out_channels", default=9)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
@@ -57,6 +57,7 @@ def main(output_dir, data_file, epochs, batch_size,
 
     train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
     h, w = train_dataset.img_size
+    in_channels = train_dataset.in_channels
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
     validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
@@ -143,6 +144,8 @@ def main(output_dir, data_file, epochs, batch_size,
         learning_rate=learning_rate,
         embed_dims=embed_dims,
         patch_size=patch_size,
+        image_height=h,
+        image_width=w,
         sparsity=sparsity,
         device=device,
         tslag=tslag,

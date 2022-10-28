@@ -49,6 +49,7 @@ class OceanDataset(Dataset):
 
         # channels = [usurf, umid, vsurf, vmid, wmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
         channels = [usurf, umid, vsurf, vmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
+        self.in_channels = len(channels)
         data = np.vstack([channel[np.newaxis,...] for channel in channels])
         return data
 
