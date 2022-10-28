@@ -116,7 +116,7 @@ def main(output_dir, data_file, epochs, batch_size,
         if avg_vloss < best_vloss:
             best_vloss = avg_vloss
             best_vloss_epoch = epoch
-            model_path = f'model_epoch_{epoch}'
+            model_path = os.path.join(output_dir, f'model_epoch_{epoch}')
             torch.save(model.state_dict(), model_path)
 
         if datetime.now() > end_time:
