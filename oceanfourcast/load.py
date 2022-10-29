@@ -11,11 +11,22 @@ class OceanDataset(Dataset):
         self.for_validate = for_validate
         self.tslag = tslag
 
-        ds = xr.open_dataset(data_file, decode_times=False)#, chunks=dict(T=10))
-        self.ds = ds
-        self.img_size = [ds.X.size, ds.Y.size]
+        self.ds = xr.open_dataset(data_file, decode_times=False)#, chunks=dict(T=10))
+        self.img_size = [self.ds.X.size, self.ds.Y.size]
         self.spinupts = spinupts
         self.T_spinup = slice(spinupts,None)
+
+        self.channels = [
+                self.ds.UVEL.isel(Zmd000015=0),    # usurf
+                self.ds.UVEL.isel(Zmd000015=7),    # umid
+                self.ds.VVEL.isel(Zmd000015=0),    # vsurf
+                self.ds.VVEL.isel(Zmd000015=7),    # vmid
+                self.ds.THETA.isel(Zmd000015=0),   # Tsurf
+                self.ds.THETA.isel(Zmd000015=7),   # Tmid
+                self.ds.PHIHYD.isel(Zmd000015=0),  # Psurf
+                self.ds.PHIHYD.isel(Zmd000015=7),  # Pmid
+                self.ds.PHIHYD.isel(Zmd000015=-1)  # Pbot
+                ]
 
     def close(self):
         self.ds.close()
@@ -27,30 +38,21 @@ class OceanDataset(Dataset):
         else:
             return n - n // 10
 
+    @staticmethod
+    def u_corner_to_center(u):
+        return (u[...,:-1] + u[...,1:])/2
+
+    @staticmethod
+    def v_corner_to_center(v):
+        return (v[...,:-1,:] + v[...,1:,:])/2
+
     def get_data(self, idx):
-        usurf = self.ds.UVEL.isel(T=idx, Zmd000015=0).values.squeeze()
-        usurf = (usurf[...,:-1] + usurf[...,1:])/2
-        umid = self.ds.UVEL.isel(T=idx, Zmd000015=7).values.squeeze()
-        umid = (umid[...,:-1] + umid[...,1:])/2
-
-        vsurf = self.ds.VVEL.isel(T=idx, Zmd000015=0).values.squeeze()
-        vsurf = (vsurf[...,:-1,:] + vsurf[...,1:,:])/2
-        vmid = self.ds.VVEL.isel(T=idx, Zmd000015=7).values.squeeze()
-        vmid = (vmid[...,:-1,:] + vmid[...,1:,:])/2
-
-        # wmid = self.ds.WVEL.isel(T=idx, Zld000015=7).values.squeeze()
-
-        thetasurf = self.ds.THETA.isel(T=idx, Zmd000015=0).values.squeeze()
-        thetamid = self.ds.THETA.isel(T=idx, Zmd000015=7).values.squeeze()
-
-        Psurf = self.ds.PHIHYD.isel(T=idx, Zmd000015=0).values.squeeze()
-        Pmid = self.ds.PHIHYD.isel(T=idx, Zmd000015=7).values.squeeze()
-        Pbot = self.ds.PHIHYD.isel(T=idx, Zmd000015=-1).values.squeeze()
-
-        # channels = [usurf, umid, vsurf, vmid, wmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
-        channels = [usurf, umid, vsurf, vmid, thetasurf, thetamid, Psurf, Pmid, Pbot]
-        self.in_channels = len(channels)
-        data = np.vstack([channel[np.newaxis,...] for channel in channels])
+        data = [channel.isel(T=idx).values.squeeze()[np.newaxis,...] for channel in self.channels]
+        data[0] = self.u_corner_to_center(data[0])
+        data[1] = self.u_corner_to_center(data[1])
+        data[2] = self.v_corner_to_center(data[2])
+        data[3] = self.v_corner_to_center(data[3])
+        data = np.vstack(data)
         return data
 
     def __getitem__(self, idx):

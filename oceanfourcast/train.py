@@ -37,9 +37,8 @@ importlib.reload(fourcastnet)
 @click.option("--affine_batchnorm", default=True)
 def main(output_dir, data_file, epochs, batch_size,
     learning_rate, embed_dims, patch_size, sparsity,
-    device, tslag, spinupts, drop_rate, in_channels,
-    out_channels, max_runtime_hours, resume_from_chkpt,
-    affine_batchnorm):
+    device, tslag, spinupts, drop_rate, out_channels, 
+    max_runtime_hours, resume_from_chkpt, affine_batchnorm):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -57,7 +56,7 @@ def main(output_dir, data_file, epochs, batch_size,
 
     train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
     h, w = train_dataset.img_size
-    in_channels = train_dataset.in_channels
+    in_channels = len(train_dataset.channels)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
     validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
