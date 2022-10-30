@@ -30,14 +30,13 @@ importlib.reload(fourcastnet)
 @click.option("--tslag", default=3)
 @click.option("--spinupts", default=0)
 @click.option("--drop_rate", default=0.5)
-#@click.option("--in_channels", default=9)
 @click.option("--out_channels", default=9)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
 @click.option("--affine_batchnorm", default=True)
 def main(output_dir, data_file, epochs, batch_size,
     learning_rate, embed_dims, patch_size, sparsity,
-    device, tslag, spinupts, drop_rate, out_channels, 
+    device, tslag, spinupts, drop_rate, out_channels,
     max_runtime_hours, resume_from_chkpt, affine_batchnorm):
 
     start_time = datetime.now()
