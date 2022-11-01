@@ -4,15 +4,14 @@ from torch.utils.data import Dataset
 import xarray as xr
 import numpy as np
 import json
+from torchvision import transforms
 
 class OceanDataset(Dataset):
-    def __init__(self, data_file, transform=None, target_transform=None, for_validate=False, tslag=3, spinupts=0):
-        self.transform = transform
-        self.target_transform = target_transform
+    def __init__(self, data_file, for_validate=False, tslag=3, spinupts=0):
         self.for_validate = for_validate
         self.tslag = tslag
 
-        self.data_dir = of.path.dirname(data_file)
+        self.data_dir = os.path.dirname(data_file)
         self.ds = xr.open_dataset(data_file, decode_times=False)#, chunks=dict(T=10))
         self.img_size = [self.ds.X.size, self.ds.Y.size]
         self.spinupts = spinupts
@@ -30,14 +29,27 @@ class OceanDataset(Dataset):
                 self.ds.PHIHYD.isel(Zmd000015=-1)  # Pbot
                 ]
 
+        self.stats_file = os.path.join(self.data_dir, "stats.npz")
+        if os.path.exists(self.stats_file):
+            statsnpzfile = np.load(self.stats_file)
+            self.means = statsnpzfile['means']
+            self.stdevs = statsnpzfile['stdevs']
+        else:
+            self.calc_mean_std()
+
+        self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
+        self.target_transform = transforms.Normalize(mean=self.means, std=self.stdevs)
+
     def calc_mean_std(self):
+        print('Calculating stats...')
         means = []
         stdevs = []
-        for channel in channels:
-            means.append(channel.isel(T=slice(0,None)).mean().values)
-            stdevs.append(channel.isel(T=slice(0,None)).std().values)
-        with open(os.path.join(self.data_dir, "means_stdevs.json"), "w") as f:
-            f.write(json.dumps(dict(means=means, stdevs=stdevs), indent=4))
+        for channel in self.channels:
+            means.append(np.float32(channel.isel(T=slice(0,None)).mean().values))
+            stdevs.append(np.float32(channel.isel(T=slice(0,None)).std().values))
+        self.means = means
+        self.stdevs = stdevs
+        np.savez(self.stats_file, means=means, stdevs=stdevs)
 
     def close(self):
         self.ds.close()
@@ -75,10 +87,5 @@ class OceanDataset(Dataset):
 
         data = self.get_data(idx)
         T    = self.get_data(idx + self.tslag)
-
-        if self.transform:
-            data = self.transform(data)
-        if self.target_transform:
-            T = self.target_transform(T)
 
         return data, T
