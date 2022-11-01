@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import Dataset
 import xarray as xr
 import numpy as np
+import json
 
 class OceanDataset(Dataset):
     def __init__(self, data_file, transform=None, target_transform=None, for_validate=False, tslag=3, spinupts=0):
@@ -11,6 +12,7 @@ class OceanDataset(Dataset):
         self.for_validate = for_validate
         self.tslag = tslag
 
+        self.data_dir = of.path.dirname(data_file)
         self.ds = xr.open_dataset(data_file, decode_times=False)#, chunks=dict(T=10))
         self.img_size = [self.ds.X.size, self.ds.Y.size]
         self.spinupts = spinupts
@@ -27,6 +29,15 @@ class OceanDataset(Dataset):
                 self.ds.PHIHYD.isel(Zmd000015=7),  # Pmid
                 self.ds.PHIHYD.isel(Zmd000015=-1)  # Pbot
                 ]
+
+    def calc_mean_std(self):
+        means = []
+        stdevs = []
+        for channel in channels:
+            means.append(channel.isel(T=slice(0,None)).mean().values)
+            stdevs.append(channel.isel(T=slice(0,None)).std().values)
+        with open(os.path.join(self.data_dir, "means_stdevs.json"), "w") as f:
+            f.write(json.dumps(dict(means=means, stdevs=stdevs), indent=4))
 
     def close(self):
         self.ds.close()
