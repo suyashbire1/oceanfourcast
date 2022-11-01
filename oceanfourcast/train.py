@@ -33,10 +33,11 @@ importlib.reload(fourcastnet)
 @click.option("--out_channels", default=9)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
+@click.option("--optimizerstr", default='adam')
 def main(output_dir, data_file, epochs, batch_size,
     learning_rate, embed_dims, patch_size, sparsity,
     device, tslag, spinupts, drop_rate, out_channels,
-    max_runtime_hours, resume_from_chkpt):
+    max_runtime_hours, resume_from_chkpt, optimizerstr):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -71,7 +72,12 @@ def main(output_dir, data_file, epochs, batch_size,
                                 drop_rate=drop_rate).to(device)
 
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.95))
+    optimizers = {
+            'adam': torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.95)),
+            'adamw': torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.95)),
+            'sgd': torch.optim.SGD(model.parameters(), lr=learning_rate)
+            }
+    optimizer = optimizers[optimizerstr]
 
     if resume_from_chkpt:
         pattern = os.path.join(output_dir,"chkpt_epoch_*")
