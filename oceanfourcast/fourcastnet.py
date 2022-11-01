@@ -100,16 +100,15 @@ class AFNONet(nn.Module):
             # Generator head
             self.head = nn.ConvTranspose2d(out_channels*4, out_channels, kernel_size=(2, 2), stride=(2, 2))
 
-    def inv_batch_norm(self, x):
-        stdev = torch.unsqueeze(torch.unsqueeze(torch.sqrt(self.batch_norm.running_var), -1), -1) + self.batch_norm.eps
-        mean = torch.unsqueeze(torch.unsqueeze(self.batch_norm.running_mean, -1), -1)
-        wt = torch.unsqueeze(torch.unsqueeze(self.batch_norm.weight, -1), -1)
-        bias = torch.unsqueeze(torch.unsqueeze(self.batch_norm.bias, -1), -1)
-        return (x-bias)*stdev/wt + mean
+#    def inv_batch_norm(self, x):
+#        stdev = torch.unsqueeze(torch.unsqueeze(torch.sqrt(self.batch_norm.running_var), -1), -1) + self.batch_norm.eps
+#        mean = torch.unsqueeze(torch.unsqueeze(self.batch_norm.running_mean, -1), -1)
+#        wt = torch.unsqueeze(torch.unsqueeze(self.batch_norm.weight, -1), -1)
+#        bias = torch.unsqueeze(torch.unsqueeze(self.batch_norm.bias, -1), -1)
+#        return (x-bias)*stdev/wt + mean
 
     def forward(self, x):
         b = x.shape[0]                                                   # (b, in_channels, img_size[0], img_size[1])
-        x = self.batch_norm(x)                                           # (b, in_channels, img_size[0], img_size[1])
         x = self.patch_embed(x)                                          # (b, h*w, d)
         x = x + self.pos_embed                                           # (b, h*w, d)
         x = self.pos_drop(x)                                             # (b, h*w, d)

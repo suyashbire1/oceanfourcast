@@ -1,5 +1,6 @@
 import time
 import os
+import subprocess
 import json
 import glob
 import argparse
@@ -77,7 +78,6 @@ def main(output_dir, data_file, epochs, batch_size,
             'adamw': torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.95)),
             'sgd': torch.optim.SGD(model.parameters(), lr=learning_rate)
             }
-    optimizer = optimizers[optimizerstr]
 
     if resume_from_chkpt:
         pattern = os.path.join(output_dir,"chkpt_epoch_*")
@@ -85,6 +85,8 @@ def main(output_dir, data_file, epochs, batch_size,
         print(f'Resuming from checkpoint {chkpt_file}...')
         checkpoint = torch.load(chkpt_file)
         model.load_state_dict(checkpoint['model_state_dict'])
+        optimizerstr = checkpoint['optimizerstr']
+        optimizer = optimizers[optimizerstr]
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         begin_epoch = checkpoint['epoch'] + 1
         best_vloss = checkpoint['best_vloss']
@@ -93,6 +95,7 @@ def main(output_dir, data_file, epochs, batch_size,
         avg_training_loss_logger = checkpoint['avg_training_loss_logger']
         validation_loss_logger = checkpoint['validation_loss_logger']
     else:
+        optimizer = optimizers[optimizerstr]
         begin_epoch = 1
         training_loss_logger = []
         avg_training_loss_logger = []
@@ -130,6 +133,7 @@ def main(output_dir, data_file, epochs, batch_size,
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
+        'optimizerstr': optimizerstr,
         'optimizer_state_dict': optimizer.state_dict(),
         'best_vloss': best_vloss,
         'best_vloss_epoch': best_vloss_epoch,
@@ -144,6 +148,7 @@ def main(output_dir, data_file, epochs, batch_size,
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        optimizerstr=optimizerstr,
         embed_dims=embed_dims,
         patch_size=patch_size,
         image_height=h,
@@ -160,7 +165,8 @@ def main(output_dir, data_file, epochs, batch_size,
         runtime=str(datetime.now() - start_time),
         training_loss = training_loss_logger,
         avg_training_loss = avg_training_loss_logger,
-        validation_loss = validation_loss_logger
+        validation_loss = validation_loss_logger,
+        version = get_git_revision_hash(load)
     )
 
     with open(os.path.join(output_dir,"logfile.json"), "w") as f:
@@ -218,6 +224,13 @@ def get_latest_checkpoint_file(pattern):
     # get last item in list
     lastfile = files[-1]
     return lastfile
+
+def get_git_revision_hash(module):
+    cwd = os.getcwd()
+    os.chdir(os.path.dirname(module.__file__))
+    githash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+    os.chdir(cwd)
+    return githash
 
 if __name__ == "__main__":
     main()
