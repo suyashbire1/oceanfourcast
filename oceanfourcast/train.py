@@ -33,11 +33,10 @@ importlib.reload(fourcastnet)
 @click.option("--out_channels", default=9)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
-@click.option("--affine_batchnorm", default=True)
 def main(output_dir, data_file, epochs, batch_size,
     learning_rate, embed_dims, patch_size, sparsity,
     device, tslag, spinupts, drop_rate, out_channels,
-    max_runtime_hours, resume_from_chkpt, affine_batchnorm):
+    max_runtime_hours, resume_from_chkpt):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -69,7 +68,6 @@ def main(output_dir, data_file, epochs, batch_size,
                                 out_channels=out_channels,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
                                 device=device,
-                                affine_batchnorm=affine_batchnorm,
                                 drop_rate=drop_rate).to(device)
 
     criterion = nn.MSELoss()
@@ -153,7 +151,6 @@ def main(output_dir, data_file, epochs, batch_size,
         out_channels=out_channels,
         best_vloss=best_vloss,
         best_vloss_epoch=best_vloss_epoch,
-        affine_batchnorm=affine_batchnorm,
         runtime=str(datetime.now() - start_time),
         training_loss = training_loss_logger,
         avg_training_loss = avg_training_loss_logger,
@@ -176,8 +173,6 @@ def train_one_epoch(model, criterion, data_loader, optimizer, device, training_l
         optimizer.zero_grad()
 
         out = model(x)
-        with torch.no_grad():
-            y = model.batch_norm(y)
 
         loss = criterion(out, y)
         loss.backward()
@@ -203,7 +198,6 @@ def validate_one_epoch(model, criterion, data_loader, device):
             y = y.to(device)
 
             out = model(x)
-            y = model.batch_norm(y)
 
             vloss = criterion(out, y)
             running_vloss += vloss.item()

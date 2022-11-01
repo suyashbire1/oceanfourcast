@@ -55,7 +55,6 @@ class AFNONet(nn.Module):
             in_channels=20, out_channels=20,
             mlp_ratio=4.,  drop_rate=0.5, norm_layer=None, 
             depth=12, patch_size=8, use_blocks=True,
-            affine_batchnorm=True,
             device='cpu'):
 
         super(AFNONet, self).__init__()
@@ -70,7 +69,6 @@ class AFNONet(nn.Module):
         self.w = img_size[1] // patch_size
         num_patches = self.h*self.w
 
-        self.batch_norm = nn.BatchNorm2d(in_channels, eps=1e-6, affine=affine_batchnorm)
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         self.norm = norm_layer(embed_dim)
 
