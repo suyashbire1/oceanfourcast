@@ -49,3 +49,24 @@ def v_corner_to_center(v):
 
 if __name__ == "__main__":
     save_numpy_file_from_xarray()
+
+
+class NumpyOceanDataset(Dataset):
+    def __init__(self, data_file, tslag=3, spinupts=0):
+        self.tslag = tslag
+
+        data_file = np.load(data_file)
+        self.data = data_file['data']
+        self.means = data_file['means']
+        self.stdevs = data_file['stdevs']
+
+        self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
+        self.target_transform = transforms.Normalize(mean=self.means, std=self.stdevs)
+
+    def __len__(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, idx):
+        idx = idx + self.spinupts
+
+        return self.data[idx], self.data[idx+self.tslag]
