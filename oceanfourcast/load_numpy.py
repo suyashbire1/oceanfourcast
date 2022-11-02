@@ -5,12 +5,14 @@ import xarray as xr
 import numpy as np
 import json
 from torchvision import transforms
+import click
 
+@click.command()
+@click.option("--xarray_data_file", default="./dynDiag.nc")
 def save_numpy_file_from_xarray(xarray_data_file):
     data_dir = os.path.dirname(xarray_data_file)
     print("Loading data...")
     with xr.open_dataset(xarray_data_file, decode_times=False) as ds:
-        Tslice = slice(0, 10)
         channels = [
             ds.UVEL.isel(Zmd000015=0),    # usurf
             ds.UVEL.isel(Zmd000015=7),    # umid
@@ -23,12 +25,13 @@ def save_numpy_file_from_xarray(xarray_data_file):
             ds.PHIHYD.isel(Zmd000015=-1)  # Pbot
         ]
 
-        data = [channel.isel(T=Tslice).values.squeeze()[np.newaxis,...] for channel in self.channels]
+        data = [channel.values.squeeze()[np.newaxis,...] for channel in channels]
         data[0] = u_corner_to_center(data[0])
         data[1] = u_corner_to_center(data[1])
         data[2] = v_corner_to_center(data[2])
         data[3] = v_corner_to_center(data[3])
         data = np.vstack(data)
+        data = np.moveaxis(data, 0, 1)
 
         print("Calculating stats...")
         means = np.mean(data, axis=(0,2,3))
@@ -43,3 +46,6 @@ def u_corner_to_center(u):
 
 def v_corner_to_center(v):
     return (v[...,:-1,:] + v[...,1:,:])/2
+
+if __name__ == "__main__":
+    save_numpy_file_from_xarray()
