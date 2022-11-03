@@ -14,6 +14,7 @@ setup(
                       'xarray',
                       'click',
                       'netcdf4',
+                      'einops',
                       ],
 
     classifiers=[

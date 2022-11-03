@@ -51,22 +51,26 @@ if __name__ == "__main__":
     save_numpy_file_from_xarray()
 
 
-class NumpyOceanDataset(Dataset):
+class OceanDataset(Dataset):
     def __init__(self, data_file, tslag=3, spinupts=0):
         self.tslag = tslag
+        self.spinupts = spinupts
 
         data_file = np.load(data_file)
-        self.data = data_file['data']
+        self.data = data_file['data'][spinupts:]
         self.means = data_file['means']
         self.stdevs = data_file['stdevs']
 
         self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
         self.target_transform = transforms.Normalize(mean=self.means, std=self.stdevs)
 
+        self.img_size = [self.data.shape[-1], self.data.shape[-2]]
+        self.channels = self.data.shape[1]
+
     def __len__(self):
-        return self.data.shape[0]
+        return self.data.shape[0] - self.tslag
 
     def __getitem__(self, idx):
-        idx = idx + self.spinupts
-
-        return self.data[idx], self.data[idx+self.tslag]
+        data = torch.tensor(self.data[idx])
+        label = torch.tensor(self.data[idx+self.tslag])
+        return self.transform(data), self.target_transform(label)

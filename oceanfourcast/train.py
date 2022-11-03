@@ -11,9 +11,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from functools import partial
-from oceanfourcast import load, fourcastnet
+from oceanfourcast import load_numpy as load, fourcastnet
 import importlib
 importlib.reload(load)
 importlib.reload(fourcastnet)
@@ -51,15 +51,24 @@ def main(output_dir, data_file, epochs, batch_size,
     seed = 1024
     torch.manual_seed(seed)
     np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
 
     assert data_file is not None
 
-    train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
-    h, w = train_dataset.img_size
-    in_channels = len(train_dataset.channels)
+    # train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
+    global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
+    h, w = global_dataset.img_size
+    # in_channels = len(train_dataset.channels)
+    in_channels = global_dataset.channels
+
+    b = len(global_dataset)
+    train_set_len = int(0.9*b)
+    valid_set_len = b - train_set_len
+    train_dataset, validation_dataset = random_split(global_dataset, [train_set_len, valid_set_len])
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
-    validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
+    # validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)
 
     model = fourcastnet.AFNONet(embed_dim=embed_dims,
@@ -172,8 +181,8 @@ def main(output_dir, data_file, epochs, batch_size,
     with open(os.path.join(output_dir,"logfile.json"), "w") as f:
         f.write(json.dumps(logfile_data, indent=4))
 
-    train_dataset.close()
-    validation_dataset.close()
+    # train_dataset.close()
+    # validation_dataset.close()
 
 def train_one_epoch(model, criterion, data_loader, optimizer, device, training_loss_logger):
     running_loss = 0.
