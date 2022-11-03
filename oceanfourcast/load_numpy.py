@@ -39,9 +39,9 @@ def save_numpy_file_from_xarray(xarray_data_file):
 
         print("Saving data...")
         numpy_data_file = os.path.join(data_dir, "dynDiags.npy")
-        np.save(numpy_data_file, data=data)
+        np.save(numpy_data_file, data)
         numpy_stats_file = os.path.join(data_dir, "dynDiagsStats.npz")
-        np.savez(numpy_stats_file, means=means, stats=stats)
+        np.savez(numpy_stats_file, means=means, stdevs=stdevs)
 
 def u_corner_to_center(u):
     return (u[...,:-1] + u[...,1:])/2
@@ -65,7 +65,7 @@ class OceanDataset(Dataset):
             mmap_mode = 'r'
 
         self.data = np.load(data_file, mmap_mode=mmap_mode)[spinupts:]
-        stats_file = os.path.join(data_dir, "dynDiagsStats.npz")
+        stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
         self.means = stats_file['means']
         self.stdevs = stats_file['stdevs']
 
