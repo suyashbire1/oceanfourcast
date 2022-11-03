@@ -57,7 +57,7 @@ def main(output_dir, data_file, epochs, batch_size,
     assert data_file is not None
 
     # train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
-    global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
+    global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag, device=device)
     h, w = global_dataset.img_size
     # in_channels = len(train_dataset.channels)
     in_channels = global_dataset.channels

@@ -38,8 +38,10 @@ def save_numpy_file_from_xarray(xarray_data_file):
         stdevs = np.std(data, axis=(0,2,3))
 
         print("Saving data...")
-        numpy_data_file = os.path.join(data_dir, "dynDiags.npz")
-        np.savez(numpy_data_file, means=means, stdevs=stdevs, data=data)
+        numpy_data_file = os.path.join(data_dir, "dynDiags.npy")
+        np.save(numpy_data_file, data=data)
+        numpy_stats_file = os.path.join(data_dir, "dynDiagsStats.npz")
+        np.savez(numpy_stats_file, means=means, stats=stats)
 
 def u_corner_to_center(u):
     return (u[...,:-1] + u[...,1:])/2
@@ -52,14 +54,20 @@ if __name__ == "__main__":
 
 
 class OceanDataset(Dataset):
-    def __init__(self, data_file, tslag=3, spinupts=0):
+    def __init__(self, data_file, tslag=3, spinupts=0, device='cpu'):
         self.tslag = tslag
         self.spinupts = spinupts
 
-        data_file = np.load(data_file)
-        self.data = data_file['data'][spinupts:]
-        self.means = data_file['means']
-        self.stdevs = data_file['stdevs']
+        data_dir = os.path.dirname(data_file)
+
+        mmap_mode = None
+        if device == 'cpu':
+            mmap_mode = 'r'
+
+        self.data = np.load(data_file, mmap_mode=mmap_mode)[spinupts:]
+        stats_file = os.path.join(data_dir, "dynDiagsStats.npz")
+        self.means = stats_file['means']
+        self.stdevs = stats_file['stdevs']
 
         self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
         self.target_transform = transforms.Normalize(mean=self.means, std=self.stdevs)
