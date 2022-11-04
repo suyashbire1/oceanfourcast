@@ -1,13 +1,17 @@
 import os
 import matplotlib.pyplot as plt
 import json
+import numpy as np
 import torch
-from oceanfourcast import load, fourcastnet
+import xarray as xr
+from oceanfourcast import load_numpy as load, fourcastnet
+import importlib
+importlib.reload(load)
 
 class Experiment():
-    def __init__(self, expt_dir, name):
-        self.name = name
+    def __init__(self, expt_dir):
         self.expt_dir = expt_dir
+        self.name = expt_dir.rsplit('/', 1)[1]
         with open(os.path.join(expt_dir, "logfile.json"), 'r') as f:
             logs = json.load(f)
         for k, v in logs.items():
@@ -38,54 +42,47 @@ class Experiment():
                                          img_size=[self.image_height, self.image_width],
                                          in_channels=self.in_channels,
                                          out_channels=self.out_channels,
-                                         affine_batchnorm=self.affine_batchnorm,
                                          drop_rate=self.drop_rate)
         if epoch is None:
             epoch = self.best_vloss_epoch
         model_path = os.path.join(self.expt_dir, f'model_epoch_{epoch}')
         self.model.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
 
-    def truth_compare_one_timestep(self, data_file=None, timestep=30, vmax=None, vmin=None, labels=None, cmaps=None):
+    def truth_compare_one_timestep(self, data_file=None, timestep=30, labels=None, cmaps=None, device='cpu'):
         model = self.model
         if data_file is None:
             data_file = self.data_file
-        ds = load.OceanDataset(data_file, for_validate=True, spinupts=self.spinupts, tslag=self.tslag)
+        ds = load.OceanDataset(data_file, spinupts=self.spinupts, tslag=self.tslag, device=device)
 
-        yi, yip1 = torch.tensor(ds[timestep])       # yi, yi + tau
-        yi = yi.unsqueeze(0)
-        yip1 = yip1.unsqueeze(0)
-        yip1hat = model(yi)                         # fourcastnet predicted yi + tau
+        with torch.no_grad():
+            yi, yip1 = ds[timestep]                     # yi, yi + tau
+            yi = yi.unsqueeze(0)
+            yip1 = yip1.unsqueeze(0)
+            yip1hat = model(yi)                         # fourcastnet predicted yi + tau
 
-        stdev = torch.unsqueeze(torch.unsqueeze(torch.sqrt(model.batch_norm.running_var), -1), -1) + model.batch_norm.eps
-        mean = torch.unsqueeze(torch.unsqueeze(model.batch_norm.running_mean, -1), -1)
-        if model.batch_norm.weight is not None:
-            wt = torch.unsqueeze(torch.unsqueeze(model.batch_norm.weight, -1), -1)
-        else:
-            wt = 1.0
-        if model.batch_norm.bias is not None:
-            bias = torch.unsqueeze(torch.unsqueeze(model.batch_norm.bias, -1), -1)
-        else:
-            bias = 0.0
-        yip1hat = (yip1hat-bias)*stdev/wt + mean
+            for y in [yi, yip1, yip1hat]:
+                y = y*ds.stdevs[:,np.newaxis,np.newaxis] + ds.means[:,np.newaxis,np.newaxis]
 
         if cmaps is None:
             cmaps = ['RdBu_r','RdBu_r','RdBu_r','RdBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r']
         if labels is None:
             labels = ['U_surf', 'umid', 'V_surf', 'vmid', 'T_surf', 'thetamid', 'P_surf', 'pmid', 'pbot']
-        if vmax is None:
-            vmax = [0.6,   0.2,  1.25,  0.3, 28, 7,   7, 22, 32]
-        if vmin is None:
-            vmin = [-0.6, -0.2, -1.25, -0.3,  0, 0, -10,  8, 13]
         with plt.style.context(('labelsize15')):
             fig, ax = plt.subplots(9,3, sharex=True, sharey=True, figsize=(15,35))
-            lon = ds.ds.X
-            lat = ds.ds.Y
+            lon, lat = ds.img_size
+            lon = np.linspace(0, 62, lon)
+            lat = np.linspace(10, 72, lat)
             for i in range(self.out_channels):
-                im = ax[i,0].pcolormesh(lon, lat, yi.squeeze()[i]                      , vmin=vmin[i], vmax=vmax[i], cmap=cmaps[i])
+                if cmaps[i] == 'RdBu_r':
+                    vmax = np.nanpercentile(np.fabs(yip1.squeeze()), 99)
+                    vmin = -vmax
+                else:
+                    vmin, vmax = np.nanpercentile(yip1.squeeze(), (1,99))
+                im = ax[i,0].pcolormesh(lon, lat, yi.squeeze()[i]                      , vmin=vmin, vmax=vmax, cmap=cmaps[i])
                 fig.colorbar(im, ax=ax[i,0])
-                im = ax[i,1].pcolormesh(lon, lat, yip1.squeeze()[i]                    , vmin=vmin[i], vmax=vmax[i], cmap=cmaps[i])
+                im = ax[i,1].pcolormesh(lon, lat, yip1.squeeze()[i]                    , vmin=vmin, vmax=vmax, cmap=cmaps[i])
                 fig.colorbar(im, ax=ax[i,1])
-                im = ax[i,2].pcolormesh(lon, lat, yip1hat.detach().numpy().squeeze()[i], vmin=vmin[i], vmax=vmax[i], cmap=cmaps[i])
+                im = ax[i,2].pcolormesh(lon, lat, yip1hat.detach().numpy().squeeze()[i], vmin=vmin, vmax=vmax, cmap=cmaps[i])
                 fig.colorbar(im, ax=ax[i,2])
                 ax[i, 0].set_title(f'{labels[i]}, Initial ($t=0$)')
                 ax[i, 1].set_title(f'{labels[i]}, Truth ($t=\Delta T$)')
