@@ -1,9 +1,11 @@
 import os
+import glob
 import matplotlib.pyplot as plt
 import json
 import numpy as np
 import torch
 import xarray as xr
+from collections import defaultdict
 from oceanfourcast import load_numpy as load, fourcastnet
 import importlib
 importlib.reload(load)
@@ -60,8 +62,9 @@ class Experiment():
             yip1 = yip1.unsqueeze(0)
             yip1hat = model(yi)                         # fourcastnet predicted yi + tau
 
-            for y in [yi, yip1, yip1hat]:
-                y = y*ds.stdevs[:,np.newaxis,np.newaxis] + ds.means[:,np.newaxis,np.newaxis]
+            # yip1 = yip1*ds.stdevs[:,np.newaxis,np.newaxis] + ds.means[:,np.newaxis,np.newaxis]
+            # yip1 = yip1*ds.stdevs[:,np.newaxis,np.newaxis] + ds.means[:,np.newaxis,np.newaxis]
+            # yip1hat = yip1hat*ds.stdevs[:,np.newaxis,np.newaxis] + ds.means[:,np.newaxis,np.newaxis]
 
         if cmaps is None:
             cmaps = ['RdBu_r','RdBu_r','RdBu_r','RdBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r']
@@ -82,7 +85,7 @@ class Experiment():
                 fig.colorbar(im, ax=ax[i,0])
                 im = ax[i,1].pcolormesh(lon, lat, yip1.squeeze()[i]                    , vmin=vmin, vmax=vmax, cmap=cmaps[i])
                 fig.colorbar(im, ax=ax[i,1])
-                im = ax[i,2].pcolormesh(lon, lat, yip1hat.detach().numpy().squeeze()[i], vmin=vmin, vmax=vmax, cmap=cmaps[i])
+                im = ax[i,2].pcolormesh(lon, lat, yip1hat.squeeze()[i], vmin=vmin, vmax=vmax, cmap=cmaps[i])
                 fig.colorbar(im, ax=ax[i,2])
                 ax[i, 0].set_title(f'{labels[i]}, Initial ($t=0$)')
                 ax[i, 1].set_title(f'{labels[i]}, Truth ($t=\Delta T$)')
@@ -103,3 +106,16 @@ class Experiment():
             fig.tight_layout()
             #fig.colorbar(im, ax=ax.ravel(), shrink=0.3)
         return fig
+
+def create_experiments_dict(root_dir):
+    logfile_pattern = os.path.join(root_dir, "**", "logfile.json")
+    files = glob.iglob(logfile_pattern, recursive=True)
+    expts = []
+    for f in files:
+        expts.append(Experiment(os.path.dirname(f)))
+
+    dd = defaultdict(list)
+    for expt in expts:
+        for k, v in expt.__dict__.items():
+            dd[k].append(v)
+    return dd

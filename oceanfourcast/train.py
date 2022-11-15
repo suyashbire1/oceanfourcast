@@ -19,6 +19,7 @@ importlib.reload(load)
 importlib.reload(fourcastnet)
 
 @click.command()
+@click.option("--name", default="experiment")
 @click.option("--output_dir", default="./")
 @click.option("--data_file", default=None)
 @click.option("--epochs", default=5)
@@ -26,6 +27,9 @@ importlib.reload(fourcastnet)
 @click.option("--learning_rate", default=5e-4)
 @click.option("--embed_dims", default=256)
 @click.option("--patch_size", default=8)
+@click.option("--depth", default=12)
+@click.option("--num_blocks", default=8)
+@click.option("--mlp_ratio", default=4)
 @click.option("--sparsity", default=1e-2)
 @click.option("--device", default='cpu')
 @click.option("--tslag", default=3)
@@ -35,10 +39,11 @@ importlib.reload(fourcastnet)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
 @click.option("--optimizerstr", default='adam')
-def main(output_dir, data_file, epochs, batch_size,
-    learning_rate, embed_dims, patch_size, sparsity,
-    device, tslag, spinupts, drop_rate, out_channels,
-    max_runtime_hours, resume_from_chkpt, optimizerstr):
+def main(name, output_dir, data_file, epochs, batch_size,
+         learning_rate, embed_dims, patch_size, depth,
+         num_blocks, mlp_ratio, sparsity, device, tslag,
+         spinupts, drop_rate, out_channels, max_runtime_hours,
+         resume_from_chkpt, optimizerstr):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -79,7 +84,10 @@ def main(output_dir, data_file, epochs, batch_size,
                                 out_channels=out_channels,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
                                 device=device,
-                                drop_rate=drop_rate).to(device)
+                                drop_rate=drop_rate,
+                                mlp_ratio=mlp_ratio,
+                                depth=depth,
+                                num_blocks=num_blocks).to(device)
 
     criterion = nn.MSELoss()
     optimizers = {
@@ -153,6 +161,7 @@ def main(output_dir, data_file, epochs, batch_size,
 
     print('Writing logs...')
     logfile_data = dict(
+        name=name,
         data_file=data_file,
         epochs=epochs,
         batch_size=batch_size,
@@ -162,6 +171,9 @@ def main(output_dir, data_file, epochs, batch_size,
         patch_size=patch_size,
         image_height=h,
         image_width=w,
+        num_blocks=num_blocks,
+        mlp_ratio=mlp_ratio,
+        depth=depth,
         sparsity=sparsity,
         device=device,
         tslag=tslag,

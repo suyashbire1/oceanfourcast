@@ -15,6 +15,7 @@ setup(
                       'click',
                       'netcdf4',
                       'einops',
+                      'torchvision'
                       ],
 
     classifiers=[

@@ -52,9 +52,9 @@ class PatchEmbed(nn.Module):
 
 
 class AFNONet(nn.Module):
-    def __init__(self, embed_dim=256, n_blocks=8, sparsity=1e-2, img_size = None, 
+    def __init__(self, embed_dim=256, n_blocks=8, sparsity=1e-2, img_size = None,
             in_channels=20, out_channels=20,
-            mlp_ratio=4.,  drop_rate=0.5, norm_layer=None, 
+            mlp_ratio=4.,  drop_rate=0.5, norm_layer=None,
             depth=12, patch_size=8, use_blocks=True,
             device='cpu'):
 
@@ -123,7 +123,7 @@ class AFNONet(nn.Module):
                 Co = self.Co, p1 = self.p, p2 = self.p,
                 h = self.h, w = self.w)                                  # (b, Co, img_size[0], img_size[1])
 
-#        x = torch.reshape(x, [b, self.h, 
+#        x = torch.reshape(x, [b, self.h,
 #            self.w*out_channels*patch_size*patch_size])                  # (b, h, w*out_channels*patch_size**2)
 #        x = torch.reshape(x, [b, self.h, out_channels*patch_size,
 #            self.w*patch_size])                                          # (b, h, out_channels*patch_size, w*patch_size)
