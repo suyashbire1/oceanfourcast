@@ -1,5 +1,6 @@
 import time
 import os
+import subprocess
 import json
 import glob
 import argparse
@@ -30,16 +31,14 @@ importlib.reload(fourcastnet)
 @click.option("--tslag", default=3)
 @click.option("--spinupts", default=0)
 @click.option("--drop_rate", default=0.5)
-@click.option("--in_channels", default=9)
 @click.option("--out_channels", default=9)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
-@click.option("--affine_batchnorm", default=True)
+@click.option("--optimizerstr", default='adam')
 def main(output_dir, data_file, epochs, batch_size,
     learning_rate, embed_dims, patch_size, sparsity,
-    device, tslag, spinupts, drop_rate, in_channels,
-    out_channels, max_runtime_hours, resume_from_chkpt,
-    affine_batchnorm):
+    device, tslag, spinupts, drop_rate, out_channels,
+    max_runtime_hours, resume_from_chkpt, optimizerstr):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -57,6 +56,7 @@ def main(output_dir, data_file, epochs, batch_size,
 
     train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
     h, w = train_dataset.img_size
+    in_channels = len(train_dataset.channels)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
     validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
@@ -70,11 +70,14 @@ def main(output_dir, data_file, epochs, batch_size,
                                 out_channels=out_channels,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
                                 device=device,
-                                affine_batchnorm=affine_batchnorm,
                                 drop_rate=drop_rate).to(device)
 
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.95))
+    optimizers = {
+            'adam': torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.95)),
+            'adamw': torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.95)),
+            'sgd': torch.optim.SGD(model.parameters(), lr=learning_rate)
+            }
 
     if resume_from_chkpt:
         pattern = os.path.join(output_dir,"chkpt_epoch_*")
@@ -82,6 +85,8 @@ def main(output_dir, data_file, epochs, batch_size,
         print(f'Resuming from checkpoint {chkpt_file}...')
         checkpoint = torch.load(chkpt_file)
         model.load_state_dict(checkpoint['model_state_dict'])
+        optimizerstr = checkpoint['optimizerstr']
+        optimizer = optimizers[optimizerstr]
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         begin_epoch = checkpoint['epoch'] + 1
         best_vloss = checkpoint['best_vloss']
@@ -90,6 +95,7 @@ def main(output_dir, data_file, epochs, batch_size,
         avg_training_loss_logger = checkpoint['avg_training_loss_logger']
         validation_loss_logger = checkpoint['validation_loss_logger']
     else:
+        optimizer = optimizers[optimizerstr]
         begin_epoch = 1
         training_loss_logger = []
         avg_training_loss_logger = []
@@ -127,6 +133,7 @@ def main(output_dir, data_file, epochs, batch_size,
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
+        'optimizerstr': optimizerstr,
         'optimizer_state_dict': optimizer.state_dict(),
         'best_vloss': best_vloss,
         'best_vloss_epoch': best_vloss_epoch,
@@ -141,8 +148,11 @@ def main(output_dir, data_file, epochs, batch_size,
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        optimizerstr=optimizerstr,
         embed_dims=embed_dims,
         patch_size=patch_size,
+        image_height=h,
+        image_width=w,
         sparsity=sparsity,
         device=device,
         tslag=tslag,
@@ -152,11 +162,11 @@ def main(output_dir, data_file, epochs, batch_size,
         out_channels=out_channels,
         best_vloss=best_vloss,
         best_vloss_epoch=best_vloss_epoch,
-        affine_batchnorm=affine_batchnorm,
         runtime=str(datetime.now() - start_time),
         training_loss = training_loss_logger,
         avg_training_loss = avg_training_loss_logger,
-        validation_loss = validation_loss_logger
+        validation_loss = validation_loss_logger,
+        version = get_git_revision_hash(load)
     )
 
     with open(os.path.join(output_dir,"logfile.json"), "w") as f:
@@ -175,8 +185,6 @@ def train_one_epoch(model, criterion, data_loader, optimizer, device, training_l
         optimizer.zero_grad()
 
         out = model(x)
-        with torch.no_grad():
-            y = model.batch_norm(y)
 
         loss = criterion(out, y)
         loss.backward()
@@ -202,7 +210,6 @@ def validate_one_epoch(model, criterion, data_loader, device):
             y = y.to(device)
 
             out = model(x)
-            y = model.batch_norm(y)
 
             vloss = criterion(out, y)
             running_vloss += vloss.item()
@@ -217,6 +224,13 @@ def get_latest_checkpoint_file(pattern):
     # get last item in list
     lastfile = files[-1]
     return lastfile
+
+def get_git_revision_hash(module):
+    cwd = os.getcwd()
+    os.chdir(os.path.dirname(module.__file__))
+    githash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+    os.chdir(cwd)
+    return githash
 
 if __name__ == "__main__":
     main()
