@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from einops import rearrange
 import math
 from functools import partial
 from collections import OrderedDict
@@ -31,10 +32,10 @@ class PatchEmbed(nn.Module):
         super(PatchEmbed, self).__init__()
         assert (img_size[0] % patch_size == 0 and img_size[1] % patch_size == 0), f"Input image size doesn't match model."
         self.img_size = img_size
-        self.patch_size = patch_size
+        #self.patch_size = patch_size
         self.h = img_size[0] // patch_size
         self.w = img_size[1] // patch_size
-        self.n_patches = self.h * self.w
+        #self.n_patches = self.h * self.w
 
         self.proj = nn.Conv2d(
             in_channels,
@@ -51,9 +52,9 @@ class PatchEmbed(nn.Module):
 
 
 class AFNONet(nn.Module):
-    def __init__(self, embed_dim=256, n_blocks=8, sparsity=1e-2, img_size = None, 
+    def __init__(self, embed_dim=256, n_blocks=8, sparsity=1e-2, img_size = None,
             in_channels=20, out_channels=20,
-            mlp_ratio=4.,  drop_rate=0.5, norm_layer=None, 
+            mlp_ratio=4.,  drop_rate=0.5, norm_layer=None,
             depth=12, patch_size=8, use_blocks=True,
             device='cpu'):
 
@@ -68,6 +69,9 @@ class AFNONet(nn.Module):
         self.h = img_size[0] // patch_size
         self.w = img_size[1] // patch_size
         num_patches = self.h*self.w
+        self.p = patch_size
+        self.Co = out_channels
+        self.Ci = in_channels
 
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         self.norm = norm_layer(embed_dim)
@@ -81,34 +85,29 @@ class AFNONet(nn.Module):
 
         self.blocks = nn.ModuleList([Block(embed_dim=embed_dim, mlp_ratio=mlp_ratio, drop=drop_rate, norm_layer=norm_layer, h=self.h, w=self.w, use_blocks=use_blocks, device=device, num_blocks=n_blocks, sparsity=sparsity) for i in range(depth)])
 
-        if patch_size == 8:
-            self.pre_logits = nn.Sequential(OrderedDict([
-                ('conv1', nn.ConvTranspose2d(embed_dim, out_channels*16, kernel_size=(2, 2), stride=(2, 2))),
-                ('act1', nn.Tanh()),
-                ('conv2', nn.ConvTranspose2d(out_channels*16, out_channels*4, kernel_size=(2, 2), stride=(2, 2))),
-                ('act2', nn.Tanh())
-            ]))
-            assert (patch_size % 4 == 0), f"Patch size is not divisible by 4"
-            ks, st = patch_size//4, patch_size//4
-            self.head = nn.ConvTranspose2d(out_channels*4, out_channels, kernel_size=(ks, ks), stride=(st, st))
-        elif patch_size == 4:
-            self.pre_logits = nn.Sequential(OrderedDict([
-                ('conv1', nn.ConvTranspose2d(embed_dim, out_channels*4, kernel_size=(2, 2), stride=(2, 2))),
-                ('act1', nn.Tanh())
-            ]))
+        self.head = nn.Linear(embed_dim, out_channels*patch_size*patch_size, bias=False)
 
-            # Generator head
-            self.head = nn.ConvTranspose2d(out_channels*4, out_channels, kernel_size=(2, 2), stride=(2, 2))
-
-#    def inv_batch_norm(self, x):
-#        stdev = torch.unsqueeze(torch.unsqueeze(torch.sqrt(self.batch_norm.running_var), -1), -1) + self.batch_norm.eps
-#        mean = torch.unsqueeze(torch.unsqueeze(self.batch_norm.running_mean, -1), -1)
-#        wt = torch.unsqueeze(torch.unsqueeze(self.batch_norm.weight, -1), -1)
-#        bias = torch.unsqueeze(torch.unsqueeze(self.batch_norm.bias, -1), -1)
-#        return (x-bias)*stdev/wt + mean
+#        if patch_size == 8:
+#            self.pre_logits = nn.Sequential(OrderedDict([
+#                ('conv1', nn.ConvTranspose2d(embed_dim, out_channels*16, kernel_size=(2, 2), stride=(2, 2))),
+#                ('act1', nn.Tanh()),
+#                ('conv2', nn.ConvTranspose2d(out_channels*16, out_channels*4, kernel_size=(2, 2), stride=(2, 2))),
+#                ('act2', nn.Tanh())
+#            ]))
+#            assert (patch_size % 4 == 0), f"Patch size is not divisible by 4"
+#            ks, st = patch_size//4, patch_size//4
+#            self.head = nn.ConvTranspose2d(out_channels*4, out_channels, kernel_size=(ks, ks), stride=(st, st))
+#        elif patch_size == 4:
+#            self.pre_logits = nn.Sequential(OrderedDict([
+#                ('conv1', nn.ConvTranspose2d(embed_dim, out_channels*4, kernel_size=(2, 2), stride=(2, 2))),
+#                ('act1', nn.Tanh())
+#            ]))
+#
+#            # Generator head
+#            self.head = nn.ConvTranspose2d(out_channels*4, out_channels, kernel_size=(2, 2), stride=(2, 2))
 
     def forward(self, x):
-        b = x.shape[0]                                                   # (b, in_channels, img_size[0], img_size[1])
+        b = x.shape[0]                                                   # (b, Ci, img_size[0], img_size[1])
         x = self.patch_embed(x)                                          # (b, h*w, d)
         x = x + self.pos_embed                                           # (b, h*w, d)
         x = self.pos_drop(x)                                             # (b, h*w, d)
@@ -117,9 +116,24 @@ class AFNONet(nn.Module):
         x = self.norm(x).transpose(1,2)                                  # (b, d, h*w)
         x = torch.reshape(x, [-1, self.embed_dim, self.h, self.w])       # (b, d, h, w)
         x = self.dropout(x)                                              # (b, d, h, w)
-        x = self.pre_logits(x)                                           # (b, out_channels*4, h*4, w*4)                        # hard-coded!
-        x = self.head(x)                                                 # (b, out_channels, h*patch_size, w*patch_size)        # hard-coded!
-        # x = self.inv_batch_norm(x)                                       # (b, out_channels, h*patch_size, w*patch_size)
+        x = torch.permute(x, (0,2,3,1))                                  # (b, h, w, d)
+        x = self.head(x)                                                 # (b, h, w, Co*p*p)
+        x = rearrange(x,
+                "b h w (Co p1 p2) -> b Co (h p1) (w p2)",
+                Co = self.Co, p1 = self.p, p2 = self.p,
+                h = self.h, w = self.w)                                  # (b, Co, img_size[0], img_size[1])
+
+#        x = torch.reshape(x, [b, self.h,
+#            self.w*out_channels*patch_size*patch_size])                  # (b, h, w*out_channels*patch_size**2)
+#        x = torch.reshape(x, [b, self.h, out_channels*patch_size,
+#            self.w*patch_size])                                          # (b, h, out_channels*patch_size, w*patch_size)
+#        x = torch.reshape(x, [b, self.h*out_channels*patch_size,
+#            self.w*patch_size])                                          # (b, h*out_channels*patch_size, w*patch_size)
+#        x = torch.reshape(x, [b, out_channels, self.h*patch_size,
+#            self.w*patch_size])                                          # (b, out_channels, h*patch_size, w*patch_size)
+
+#        x = self.pre_logits(x)                                           # (b, out_channels*4, h*4, w*4)                        # hard-coded!
+#        x = self.head(x)                                                 # (b, out_channels, h*patch_size, w*patch_size)        # hard-coded!
         return x
 
 
@@ -143,7 +157,7 @@ class Block(nn.Module):
 
 
 class AdaptiveFourierNeuralOperator(nn.Module):
-    def __init__(self, embed_dim, h, w, num_blocks=8, bias=None, softshrink=True, device='cpu', sparsity=1e-2):
+    def __init__(self, embed_dim, h, w, num_blocks=8, softshrink=True, device='cpu', sparsity=1e-2):
         super(AdaptiveFourierNeuralOperator, self).__init__()
         self.embed_dim = embed_dim
         self.h = h
@@ -160,11 +174,6 @@ class AdaptiveFourierNeuralOperator(nn.Module):
         self.b2 = torch.nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, device=device))
         self.relu = nn.ReLU()
 
-        if bias:
-            self.bias = nn.Conv1d(self.embed_dim, self.embed_dim, 1)
-        else:
-            self.bias = None
-
         self.softshrink = softshrink
         self.sparsity = sparsity
 
@@ -174,10 +183,7 @@ class AdaptiveFourierNeuralOperator(nn.Module):
     def forward(self, x):
         b, hw, d = x.shape
 
-        if self.bias:
-            bias = self.bias(x.permute(0, 2, 1)).permute(0, 2, 1)
-        else:
-            bias = torch.zeros(x.shape, device=x.device)
+        bias = x
 
         x = x.reshape(b, self.h, self.w, d).float()                                  # (b, h, w, d)
         x = torch.fft.rfft2(x, dim=(1,2), norm='ortho')                              # (b, h, w//2+1, d)

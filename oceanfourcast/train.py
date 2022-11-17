@@ -11,14 +11,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from functools import partial
-from oceanfourcast import load, fourcastnet
+from oceanfourcast import load_numpy as load, fourcastnet
 import importlib
 importlib.reload(load)
 importlib.reload(fourcastnet)
 
 @click.command()
+@click.option("--name", default="experiment")
 @click.option("--output_dir", default="./")
 @click.option("--data_file", default=None)
 @click.option("--epochs", default=5)
@@ -26,6 +27,9 @@ importlib.reload(fourcastnet)
 @click.option("--learning_rate", default=5e-4)
 @click.option("--embed_dims", default=256)
 @click.option("--patch_size", default=8)
+@click.option("--depth", default=12)
+@click.option("--num_blocks", default=8)
+@click.option("--mlp_ratio", default=4)
 @click.option("--sparsity", default=1e-2)
 @click.option("--device", default='cpu')
 @click.option("--tslag", default=3)
@@ -35,10 +39,11 @@ importlib.reload(fourcastnet)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
 @click.option("--optimizerstr", default='adam')
-def main(output_dir, data_file, epochs, batch_size,
-    learning_rate, embed_dims, patch_size, sparsity,
-    device, tslag, spinupts, drop_rate, out_channels,
-    max_runtime_hours, resume_from_chkpt, optimizerstr):
+def main(name, output_dir, data_file, epochs, batch_size,
+         learning_rate, embed_dims, patch_size, depth,
+         num_blocks, mlp_ratio, sparsity, device, tslag,
+         spinupts, drop_rate, out_channels, max_runtime_hours,
+         resume_from_chkpt, optimizerstr):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -51,15 +56,24 @@ def main(output_dir, data_file, epochs, batch_size,
     seed = 1024
     torch.manual_seed(seed)
     np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
 
     assert data_file is not None
 
-    train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
-    h, w = train_dataset.img_size
-    in_channels = len(train_dataset.channels)
+    # train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
+    global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag, device=device)
+    h, w = global_dataset.img_size
+    # in_channels = len(train_dataset.channels)
+    in_channels = global_dataset.channels
+
+    b = len(global_dataset)
+    train_set_len = int(0.9*b)
+    valid_set_len = b - train_set_len
+    train_dataset, validation_dataset = random_split(global_dataset, [train_set_len, valid_set_len])
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
-    validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
+    # validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)
 
     model = fourcastnet.AFNONet(embed_dim=embed_dims,
@@ -70,7 +84,10 @@ def main(output_dir, data_file, epochs, batch_size,
                                 out_channels=out_channels,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
                                 device=device,
-                                drop_rate=drop_rate).to(device)
+                                drop_rate=drop_rate,
+                                mlp_ratio=mlp_ratio,
+                                depth=depth,
+                                num_blocks=num_blocks).to(device)
 
     criterion = nn.MSELoss()
     optimizers = {
@@ -144,6 +161,7 @@ def main(output_dir, data_file, epochs, batch_size,
 
     print('Writing logs...')
     logfile_data = dict(
+        name=name,
         data_file=data_file,
         epochs=epochs,
         batch_size=batch_size,
@@ -153,6 +171,9 @@ def main(output_dir, data_file, epochs, batch_size,
         patch_size=patch_size,
         image_height=h,
         image_width=w,
+        num_blocks=num_blocks,
+        mlp_ratio=mlp_ratio,
+        depth=depth,
         sparsity=sparsity,
         device=device,
         tslag=tslag,
@@ -172,8 +193,8 @@ def main(output_dir, data_file, epochs, batch_size,
     with open(os.path.join(output_dir,"logfile.json"), "w") as f:
         f.write(json.dumps(logfile_data, indent=4))
 
-    train_dataset.close()
-    validation_dataset.close()
+    # train_dataset.close()
+    # validation_dataset.close()
 
 def train_one_epoch(model, criterion, data_loader, optimizer, device, training_loss_logger):
     running_loss = 0.

@@ -85,7 +85,7 @@ class OceanDataset(Dataset):
         if self.for_validate:
             idx = n - n //10 + idx - self.tslag
 
-        data = self.get_data(idx)
-        T    = self.get_data(idx + self.tslag)
+        data = self.transform(torch.tensor(self.get_data(idx)))
+        T    = self.target_transform(torch.tensor(self.get_data(idx + self.tslag)))
 
         return data, T
