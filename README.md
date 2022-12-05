@@ -22,3 +22,9 @@ python oceanfourcast/load_numpy.py --xarray_data_file "data/processed/unet/dynDi
 ```
 python oceanfourcast/train.py --data_file "data/processed/dynDiags.npy" --batch_size 2
 ```
+
+## Train baseline models
+```
+# UNet
+python oceanfourcast/train_unet.py --modelstr "unet" --data_file "data/processed/unet/dynDiags.npy" --batch_size 2 --output_dir "models/temp/mitgcm/unet/"
+```

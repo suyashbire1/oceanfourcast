@@ -2,6 +2,8 @@ data/*
 *.egg-info
 __pycache__
 
+models/temp/mitgcm/unet/*
+
 chkpt_*
 logfile*
 model_epoch*

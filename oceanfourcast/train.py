@@ -13,7 +13,8 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader, random_split
 from functools import partial
-from oceanfourcast import load_numpy as load, fourcastnet
+from oceanfourcast import load_numpy as load
+from oceanfourcast import fourcastnet
 import importlib
 importlib.reload(load)
 importlib.reload(fourcastnet)
@@ -39,11 +40,12 @@ importlib.reload(fourcastnet)
 @click.option("--max_runtime_hours", default=11.5)
 @click.option("--resume_from_chkpt", default=False)
 @click.option("--optimizerstr", default='adam')
+@click.option("--modelstr", default="fourcastnet")
 def main(name, output_dir, data_file, epochs, batch_size,
          learning_rate, embed_dims, patch_size, depth,
          num_blocks, mlp_ratio, sparsity, device, tslag,
          spinupts, drop_rate, out_channels, max_runtime_hours,
-         resume_from_chkpt, optimizerstr):
+         resume_from_chkpt, optimizerstr, modelstr):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -76,18 +78,26 @@ def main(name, output_dir, data_file, epochs, batch_size,
     # validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)
 
-    model = fourcastnet.AFNONet(embed_dim=embed_dims,
-                                patch_size=patch_size,
-                                sparsity=sparsity,
-                                img_size=[h, w],
-                                in_channels=in_channels,
-                                out_channels=out_channels,
-                                norm_layer=partial(nn.LayerNorm, eps=1e-6),
-                                device=device,
-                                drop_rate=drop_rate,
-                                mlp_ratio=mlp_ratio,
-                                depth=depth,
-                                n_blocks=num_blocks).to(device)
+    if modelstr == 'fourcastnet':
+        model = fourcastnet.AFNONet(embed_dim=embed_dims,
+                    patch_size=patch_size,
+                    sparsity=sparsity,
+                    img_size=[h, w],
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                    device=device,
+                    drop_rate=drop_rate,
+                    mlp_ratio=mlp_ratio,
+                    depth=depth,
+                    n_blocks=num_blocks).to(device)
+    elif modelstr == 'unet':
+        from oceanfourcast import unet
+        importlib.reload(unet)
+        model = unet.UNet(n_channels=in_channels, 
+                    n_classes=out_channels)
+    else:
+        print(f'argument modelstr {modelstr} invalid')
 
     criterion = nn.MSELoss()
     optimizers = {
