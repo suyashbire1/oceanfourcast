@@ -23,6 +23,7 @@ def save_numpy_file_from_xarray(xarray_data_file):
             ds.PHIHYD.isel(Zmd000015=0),  # Psurf
             ds.PHIHYD.isel(Zmd000015=7),  # Pmid
             ds.PHIHYD.isel(Zmd000015=-1)  # Pbot
+            ds.PsiVEL.sum('Zmd000015')    # Psi
         ]
 
         data = [channel.values.squeeze()[np.newaxis,...] for channel in channels]
@@ -42,6 +43,25 @@ def save_numpy_file_from_xarray(xarray_data_file):
         np.save(numpy_data_file, data)
         numpy_stats_file = os.path.join(data_dir, "dynDiagsStats.npz")
         np.savez(numpy_stats_file, means=means, stdevs=stdevs)
+
+        forcing_file = os.path.join(data_dir, "forcing.json")
+
+def create_forcing_arrays(xarray_data_file):
+    with xr.open_dataset(xarray_data_file, decode_times=False) as ds:
+        x = ds.X.values
+        y = ds.Y.values
+    data_dir = os.path.dirname(xarray_data_file)
+    with open(forcing_file) as f:
+        forcing = json.load(f)
+        Tmax = forcing['Tmax']
+        Tmin = forcing['Tmin']
+        taumax = forcing['taumax']
+    nx, ny = x.size, y.size
+    xo, yo = x[0], y[0]
+    dx, dy = np.diff(x)[0], np.diff(y)[0]
+    tau = -taumax * np.cos(2*pi*((y-yo)/(ny-2)/dy))
+    Trest = (Tmax-Tmin)/(ny-2)/dy * (yo-y) + Tmax
+    return tau, Trest
 
 def u_corner_to_center(u):
     return (u[...,:-1] + u[...,1:])/2
