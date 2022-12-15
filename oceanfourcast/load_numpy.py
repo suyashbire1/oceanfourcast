@@ -22,7 +22,7 @@ def save_numpy_file_from_xarray(xarray_data_file):
             ds.THETA.isel(Zmd000015=7),   # Tmid
             ds.PHIHYD.isel(Zmd000015=0),  # Psurf
             ds.PHIHYD.isel(Zmd000015=7),  # Pmid
-            ds.PHIHYD.isel(Zmd000015=-1),  # Pbot
+            ds.PHIHYD.isel(Zmd000015=-1), # Pbot
             ds.PsiVEL.sum('Zmd000015')    # Psi
         ]
 
@@ -31,6 +31,11 @@ def save_numpy_file_from_xarray(xarray_data_file):
         data[1] = u_corner_to_center(data[1])
         data[2] = v_corner_to_center(data[2])
         data[3] = v_corner_to_center(data[3])
+
+        tau, Trest = create_forcing_arrays(xarray_data_file)
+        data.append(tau)
+        data.append(Trest)
+
         data = np.vstack(data)
         data = np.moveaxis(data, 0, 1)
 
@@ -44,13 +49,13 @@ def save_numpy_file_from_xarray(xarray_data_file):
         numpy_stats_file = os.path.join(data_dir, "dynDiagsStats.npz")
         np.savez(numpy_stats_file, means=means, stdevs=stdevs)
 
-        forcing_file = os.path.join(data_dir, "forcing.json")
 
 def create_forcing_arrays(xarray_data_file):
     with xr.open_dataset(xarray_data_file, decode_times=False) as ds:
         x = ds.X.values
         y = ds.Y.values
     data_dir = os.path.dirname(xarray_data_file)
+    forcing_file = os.path.join(data_dir, "forcing.json")
     with open(forcing_file) as f:
         forcing = json.load(f)
         Tmax = forcing['Tmax']
@@ -59,8 +64,10 @@ def create_forcing_arrays(xarray_data_file):
     nx, ny = x.size, y.size
     xo, yo = x[0], y[0]
     dx, dy = np.diff(x)[0], np.diff(y)[0]
-    tau = -taumax * np.cos(2*pi*((y-yo)/(ny-2)/dy))
+    tau = -taumax * np.cos(2*np.pi*((y-yo)/(ny-2)/dy))
+    tau = np.repeat(tau[:, np.newaxis], x.size, axis=1)
     Trest = (Tmax-Tmin)/(ny-2)/dy * (yo-y) + Tmax
+    Trest = np.repeat(Trest[:, np.newaxis], x.size, axis=1)
     return tau, Trest
 
 def u_corner_to_center(u):
