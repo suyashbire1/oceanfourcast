@@ -79,6 +79,11 @@ class OceanDataset(Dataset):
         return self.data.shape[0] - self.tslag
 
     def __getitem__(self, idx):
+        """
+        Returns:
+            data torch.Tensor([channels, h, w])
+            label torch.Tensor([channels, h, w])
+        """
         data = torch.tensor(self.data[idx])
         label = torch.tensor(self.data[idx+self.tslag])
         return self.transform(data), self.target_transform(label)

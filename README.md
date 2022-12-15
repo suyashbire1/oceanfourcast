@@ -15,9 +15,16 @@ pip install -e .
 mkdir -p data/processed/
 scp name@servername.com:/path/to/file/mitgcm/double_gyre/run3/dynDiag_subset.nc data/processed/. # Sample dataset
 scp name@servername.com:/path/to/file/mitgcm/double_gyre/run3/dynDiag.nc data/processed/. # Full dataset
+python oceanfourcast/load_numpy.py --xarray_data_file "data/processed/unet/dynDiag_subset.nc" # Convert .nc to .npy
 ```
 
 ## Train
 ```
-python oceanfourcast/train.py --data_file "data/processed/dynDiag_subset.nc" --batch_size 2
+python oceanfourcast/train.py --data_file "data/processed/dynDiags.npy" --batch_size 2
+```
+
+## Train baseline models
+```
+# UNet
+python oceanfourcast/train_unet.py --modelstr "unet" --data_file "data/processed/unet/dynDiags.npy" --batch_size 2 --output_dir "models/temp/mitgcm/unet/"
 ```
