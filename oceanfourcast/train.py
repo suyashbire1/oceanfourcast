@@ -87,7 +87,7 @@ def main(name, output_dir, data_file, epochs, batch_size,
                                 drop_rate=drop_rate,
                                 mlp_ratio=mlp_ratio,
                                 depth=depth,
-                                num_blocks=num_blocks).to(device)
+                                n_blocks=num_blocks).to(device)
 
     criterion = nn.MSELoss()
     optimizers = {

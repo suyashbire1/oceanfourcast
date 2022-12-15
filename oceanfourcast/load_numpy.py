@@ -22,7 +22,7 @@ def save_numpy_file_from_xarray(xarray_data_file):
             ds.THETA.isel(Zmd000015=7),   # Tmid
             ds.PHIHYD.isel(Zmd000015=0),  # Psurf
             ds.PHIHYD.isel(Zmd000015=7),  # Pmid
-            ds.PHIHYD.isel(Zmd000015=-1)  # Pbot
+            ds.PHIHYD.isel(Zmd000015=-1),  # Pbot
             ds.PsiVEL.sum('Zmd000015')    # Psi
         ]
 
