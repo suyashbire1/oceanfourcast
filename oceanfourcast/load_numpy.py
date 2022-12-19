@@ -42,12 +42,14 @@ def save_numpy_file_from_xarray(xarray_data_file):
         print("Calculating stats...")
         means = np.mean(data, axis=(0,2,3))
         stdevs = np.std(data, axis=(0,2,3))
+        timemeans = np.mean(data, axis=0)
+        timestdevs = np.std(data, axis=0)
 
         print("Saving data...")
         numpy_data_file = os.path.join(data_dir, "dynDiags.npy")
         np.save(numpy_data_file, data)
         numpy_stats_file = os.path.join(data_dir, "dynDiagsStats.npz")
-        np.savez(numpy_stats_file, means=means, stdevs=stdevs)
+        np.savez(numpy_stats_file, means=means, stdevs=stdevs, timemeans=timemeans, timestdevs=timestdevs)
 
 
 def create_forcing_arrays(xarray_data_file):
@@ -81,7 +83,7 @@ if __name__ == "__main__":
 
 
 class OceanDataset(Dataset):
-    def __init__(self, data_file, tslag=3, spinupts=0, device='cpu'):
+    def __init__(self, data_file, tslag=3, spinupts=0, fine_tune=False, device='cpu'):
         self.tslag = tslag
         self.spinupts = spinupts
 
@@ -95,22 +97,41 @@ class OceanDataset(Dataset):
         stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
         self.means = stats_file['means']
         self.stdevs = stats_file['stdevs']
+        self.timemeans = stats_file['timemeans']
+        self.timestdevs = stats_file['timestdevs']
 
         self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
         self.target_transform = transforms.Normalize(mean=self.means, std=self.stdevs)
 
         self.img_size = [self.data.shape[-1], self.data.shape[-2]]
         self.channels = self.data.shape[1]
+        self.fine_tune = fine_tune
+        if self.fine_tune:
+            self.len_ = self.data.shape[0] - self.tslag*2
+            self.__getitem__ = self.getitem_finetune
+        else:
+            self.len_ = self.data.shape[0] - self.tslag
+            self.__getitem__ = self.getitem_nofinetune
 
     def __len__(self):
-        return self.data.shape[0] - self.tslag
+        return self.len_
 
-    def __getitem__(self, idx):
+    def getitem_nofinetune(self):
         """
         Returns:
             data torch.Tensor([channels, h, w])
             label torch.Tensor([channels, h, w])
         """
-        data = torch.tensor(self.data[idx])
-        label = torch.tensor(self.data[idx+self.tslag])
-        return self.transform(data), self.target_transform(label)
+        data = self.transform(torch.tensor(self.data[idx]))
+        label = self.target_transform(torch.tensor(self.data[idx+self.tslag]))
+        return data, label
+
+    def getitem_finetune(self):
+        """
+        Returns:
+            data torch.Tensor([channels, h, w])
+            label [torch.Tensor([channels, h, w]), torch.Tensor([channels, h, w])]
+        """
+        data = self.transform(torch.tensor(self.data[idx]))
+        label = self.target_transform(torch.tensor(self.data[idx+self.tslag])), self.target_transform(torch.tensor(self.data[idx+2*self.tslag]))
+        return data, label
