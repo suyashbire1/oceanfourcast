@@ -41,11 +41,12 @@ importlib.reload(fourcastnet)
 @click.option("--resume_from_chkpt", default=False)
 @click.option("--optimizerstr", default='adam')
 @click.option("--modelstr", default="fourcastnet")
+@click.option("--fine_tune", default=False)
 def main(name, output_dir, data_file, epochs, batch_size,
          learning_rate, embed_dims, patch_size, depth,
          num_blocks, mlp_ratio, sparsity, device, tslag,
          spinupts, drop_rate, out_channels, max_runtime_hours,
-         resume_from_chkpt, optimizerstr, modelstr):
+         resume_from_chkpt, optimizerstr, modelstr, fine_tune):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -64,7 +65,7 @@ def main(name, output_dir, data_file, epochs, batch_size,
     assert data_file is not None
 
     # train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
-    global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag, device=device)
+    global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune)
     h, w = global_dataset.img_size
     # in_channels = len(train_dataset.channels)
     in_channels = global_dataset.channels
@@ -94,7 +95,7 @@ def main(name, output_dir, data_file, epochs, batch_size,
     elif modelstr == 'unet':
         from oceanfourcast import unet
         importlib.reload(unet)
-        model = unet.UNet(n_channels=in_channels, 
+        model = unet.UNet(n_channels=in_channels,
                     n_classes=out_channels)
     else:
         print(f'argument modelstr {modelstr} invalid')
@@ -130,16 +131,23 @@ def main(name, output_dir, data_file, epochs, batch_size,
         best_vloss = 1000000.
         best_vloss_epoch = 1
 
+    if fine_tune:
+        train_func = train_one_epoch_finetune
+        validate_func = validate_one_epoch_finetune
+    else:
+        train_func = train_one_epoch
+        validate_func = validate_one_epoch
+
     for epoch in range(begin_epoch, epochs+1):
         epoch_start_time = datetime.now()
         print(f'EPOCH {epoch}:-----------------------------------------------------------')
 
         model.train(True)
         print('Training...')
-        avg_loss = train_one_epoch(model, criterion, train_dataloader, optimizer, device, training_loss_logger)
+        avg_loss = train_func(model, criterion, train_dataloader, optimizer, device, training_loss_logger)
         model.train(False)
         print('Validating...')
-        avg_vloss = validate_one_epoch(model, criterion, validation_dataloader, device)
+        avg_vloss = validate_func(model, criterion, validation_dataloader, device)
         print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
         print(f'Epoch evaluation time: {(datetime.now()-epoch_start_time)}')
         avg_training_loss_logger.append(avg_loss)
@@ -233,6 +241,35 @@ def train_one_epoch(model, criterion, data_loader, optimizer, device, training_l
 
     return avg_loss/(i+1)
 
+def train_one_epoch_finetune(model, criterion, data_loader, optimizer, device, training_loss_logger):
+    running_loss = 0.
+    avg_loss = 0.
+    for i, (x,(y1,y2)) in enumerate(data_loader):
+        x = x.to(device)
+        y1 = y1.to(device)
+        y2 = y2.to(device)
+
+        optimizer.zero_grad()
+
+        out1 = model(x)
+        out2 = model(out1)
+
+        loss = criterion(out1, y1) + criterion(out2, y2)
+        loss.backward()
+
+        optimizer.step()
+
+        # Gather data and report
+        running_loss += loss.item()
+        avg_loss += loss.item()
+        if i % 10 == 9:
+            last_loss = running_loss / 10 # loss per batch
+            training_loss_logger.append(last_loss)
+            print(f'batch {i+1}, loss: {last_loss}')
+            running_loss = 0.
+
+    return avg_loss/(i+1)
+
 def validate_one_epoch(model, criterion, data_loader, device):
     with torch.no_grad():
         running_vloss = 0.0
@@ -245,6 +282,25 @@ def validate_one_epoch(model, criterion, data_loader, device):
             vloss = criterion(out, y)
             running_vloss += vloss.item()
     return running_vloss / (i+1)
+
+def validate_one_epoch_finetune(model, criterion, data_loader, device):
+    with torch.no_grad():
+        running_vloss = 0.0
+        for i, (x,(y1,y2)) in enumerate(data_loader):
+            x = x.to(device)
+            y1 = y1.to(device)
+            y2 = y2.to(device)
+
+            out1 = model(x)
+            out2 = model(out1)
+
+            vloss = criterion(out1,y1) + criterion(out2,y2)
+            running_vloss += vloss.item()
+    return running_vloss / (i+1)
+
+def check_epoch_metrics(model, dataset, device):
+    with torch.no_grad():
+    acc
 
 def get_latest_checkpoint_file(pattern):
 
@@ -262,6 +318,26 @@ def get_git_revision_hash(module):
     githash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
     os.chdir(cwd)
     return githash
+
+# def latitude_weighting(lat_array):
+#     nlat = len(lat_array)
+#     return nlat*np.cos(lat_array)/np.sum(np.cos(lat_array))
+
+# def anomaly_correlation_coefficient_lw(xtrue, xpred, channel, lat_array):
+#     L = latitude_weighting(lat_array)
+#     xpredanom = (xpred[channel]-mean[channel])
+#     xtrueanom = (xtrue[channel]-mean[channel])
+#     numerator = np.sum(L*xpredanom*xtrueanom)
+#     denominator = np.sqrt(np.sum(L*xpredanom**2)*np.sum(L*xtrueanom**2))
+#     return numerator/denominator
+
+# def relative_quantile_error_lw():
+#     pass
+
+# def rmse_lw(xtrue, xpred, channel, lat_array):
+#     nx, ny = xtrue.shape[-2:]
+#     L = latitude_weighting(lat_array)
+#     return np.sqrt(np.sum(L*(xpred-xtrue)))/nx/ny
 
 if __name__ == "__main__":
     main()
