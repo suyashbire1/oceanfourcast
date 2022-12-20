@@ -219,14 +219,14 @@ def train_one_epoch(model, criterion, data_loader, optimizer, device, training_l
     running_loss = 0.
     avg_loss = 0.
     for i, (x,y) in enumerate(data_loader):
-        x = x.to(device)
-        y = y.to(device)
+        x = x.to(device, dtype=torch.float)
+        y = y.to(device, dtype=torch.float)
 
         optimizer.zero_grad()
 
         out = model(x)
 
-        loss = criterion(out, y)
+        loss = criterion(out, y[:, :model.Co])
         loss.backward()
 
         optimizer.step()
@@ -246,16 +246,18 @@ def train_one_epoch_finetune(model, criterion, data_loader, optimizer, device, t
     running_loss = 0.
     avg_loss = 0.
     for i, (x,(y1,y2)) in enumerate(data_loader):
-        x = x.to(device)
-        y1 = y1.to(device)
-        y2 = y2.to(device)
+        x = x.to(device, dtype=torch.float)
+        y1 = y1.to(device, dtype=torch.float)
+        y2 = y2.to(device, dtype=torch.float)
 
         optimizer.zero_grad()
 
         out1 = model(x)
+        loss1 = criterion(out1, y1[:, :model.Co])
+        out1 = torch.cat((out1,y1[:, model.Co:]), dim=1)
         out2 = model(out1)
 
-        loss = criterion(out1, y1) + criterion(out2, y2)
+        loss = loss1 + criterion(out2, y2[:, :model.Co])
         loss.backward()
 
         optimizer.step()
@@ -275,12 +277,12 @@ def validate_one_epoch(model, criterion, data_loader, device):
     with torch.no_grad():
         running_vloss = 0.0
         for i, (x,y) in enumerate(data_loader):
-            x = x.to(device)
-            y = y.to(device)
+            x = x.to(device, dtype=torch.float)
+            y = y.to(device, dtype=torch.float)
 
             out = model(x)
 
-            vloss = criterion(out, y)
+            vloss = criterion(out, y[:, :model.Co])
             running_vloss += vloss.item()
     return running_vloss / (i+1)
 
@@ -288,20 +290,21 @@ def validate_one_epoch_finetune(model, criterion, data_loader, device):
     with torch.no_grad():
         running_vloss = 0.0
         for i, (x,(y1,y2)) in enumerate(data_loader):
-            x = x.to(device)
-            y1 = y1.to(device)
-            y2 = y2.to(device)
+            x = x.to(device, dtype=torch.float)
+            y1 = y1.to(device, dtype=torch.float)
+            y2 = y2.to(device, dtype=torch.float)
 
             out1 = model(x)
+            loss1 = criterion(out1, y1[:, :model.Co])
+            out1 = torch.cat((out1,y1[:, model.Co:]), dim=1)
             out2 = model(out1)
-
-            vloss = criterion(out1,y1) + criterion(out2,y2)
+            vloss = loss1 + criterion(out2, y2[:, :model.Co])
             running_vloss += vloss.item()
     return running_vloss / (i+1)
 
-def check_epoch_metrics(model, dataset, device):
-    with torch.no_grad():
-    acc
+#def check_epoch_metrics(model, dataset, device):
+#    with torch.no_grad():
+#    acc
 
 def get_latest_checkpoint_file(pattern):
 

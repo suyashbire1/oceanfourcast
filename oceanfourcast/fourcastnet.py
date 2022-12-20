@@ -42,6 +42,7 @@ class PatchEmbed(nn.Module):
             embed_dim,
             kernel_size=patch_size,
             stride=patch_size,
+            device=device
         )
 
     def forward(self, x):

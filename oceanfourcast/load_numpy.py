@@ -31,8 +31,12 @@ def save_numpy_file_from_xarray(xarray_data_file):
         data[1] = u_corner_to_center(data[1])
         data[2] = v_corner_to_center(data[2])
         data[3] = v_corner_to_center(data[3])
+        data[9] = u_corner_to_center(v_corner_to_center(data[9]))
 
+        nt = np.shape(data[0])[1]
         tau, Trest = create_forcing_arrays(xarray_data_file)
+        tau = np.repeat(tau[np.newaxis, np.newaxis,:,:], nt, axis=1)
+        Trest = np.repeat(Trest[np.newaxis, np.newaxis,:,:], nt, axis=1)
         data.append(tau)
         data.append(Trest)
 
@@ -108,15 +112,18 @@ class OceanDataset(Dataset):
         self.fine_tune = fine_tune
         if self.fine_tune:
             self.len_ = self.data.shape[0] - self.tslag*2
-            self.__getitem__ = self.getitem_finetune
+            self.getitem = self.getitem_finetune
         else:
             self.len_ = self.data.shape[0] - self.tslag
-            self.__getitem__ = self.getitem_nofinetune
+            self.getitem = self.getitem_nofinetune
 
     def __len__(self):
         return self.len_
 
-    def getitem_nofinetune(self):
+    def __getitem__(self, idx):
+        return self.getitem(idx)
+
+    def getitem_nofinetune(self, idx):
         """
         Returns:
             data torch.Tensor([channels, h, w])
@@ -126,7 +133,7 @@ class OceanDataset(Dataset):
         label = self.target_transform(torch.tensor(self.data[idx+self.tslag]))
         return data, label
 
-    def getitem_finetune(self):
+    def getitem_finetune(self, idx):
         """
         Returns:
             data torch.Tensor([channels, h, w])
