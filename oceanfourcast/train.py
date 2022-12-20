@@ -117,8 +117,12 @@ def main(name, output_dir, data_file, epochs, batch_size,
         optimizer = optimizers[optimizerstr]
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         begin_epoch = checkpoint['epoch'] + 1
-        best_vloss = checkpoint['best_vloss']
-        best_vloss_epoch = checkpoint['best_vloss_epoch']
+        if fine_tune:
+            best_vloss = 1000000.
+            best_vloss_epoch = 1
+        else:
+            best_vloss = checkpoint['best_vloss']
+            best_vloss_epoch = checkpoint['best_vloss_epoch']
         training_loss_logger = checkpoint['training_loss_logger']
         avg_training_loss_logger = checkpoint['avg_training_loss_logger']
         validation_loss_logger = checkpoint['validation_loss_logger']
