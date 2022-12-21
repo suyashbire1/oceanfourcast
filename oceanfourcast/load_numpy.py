@@ -66,22 +66,24 @@ def save_global_stats(data_rootdir):
     print(f"Working on {f}")
     data = np.load(f, mmap_mode='r')
     nt = data.shape[0]
-    global_means = nt*np.mean(data, axis=[0,2,3])
-    global_stdevs = nt*np.stdevs(data, axis=[0,2,3])
+    global_means = nt*np.mean(data, axis=(0,2,3))
+    global_stdevs = nt*np.std(data, axis=(0,2,3))
     global_time_steps = nt
 
     for f in files:
         print(f"Working on {f}")
         data = np.load(f, mmap_mode='r')
         nt = data.shape[0]
-        sim_means = np.mean(data, axis=[0,2,3])
-        sim_stdevs = np.stdevs(data, axis=[0,2,3])
+        sim_means = np.mean(data, axis=(0,2,3))
+        sim_stdevs = np.std(data, axis=(0,2,3))
         global_means += nt*sim_means
         global_stdevs += nt*sim_stdevs
         global_time_steps += nt
 
     global_means /= global_time_steps
     global_stdevs /= global_time_steps
+    print(global_means)
+    print(global_stdevs)
 
     print("Saving data...")
     file_pattern = os.path.join(data_rootdir, "**", "dynDiags.npy")

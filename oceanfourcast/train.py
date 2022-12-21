@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, ConcatDataset, Subset
 from functools import partial
 from oceanfourcast import load_numpy as load
 from oceanfourcast import fourcastnet
@@ -62,18 +62,28 @@ def main(name, output_dir, data_file, epochs, batch_size,
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
 
-    assert data_file is not None
+    if data_file is not None:
+        # train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
+        global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune)
+        h, w = global_dataset.img_size
+        # in_channels = len(train_dataset.channels)
+        in_channels = global_dataset.channels
 
-    # train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
-    global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune)
-    h, w = global_dataset.img_size
-    # in_channels = len(train_dataset.channels)
-    in_channels = global_dataset.channels
+        b = len(global_dataset)
+        train_set_len = int(0.9*b)
+        valid_set_len = b - train_set_len
+        train_dataset, validation_dataset = random_split(global_dataset, [train_set_len, valid_set_len])
+    else:
+        dataset1 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_1/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
+        dataset2 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_less_wind/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
+        dataset3 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_less_flux/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
+        dataset4 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_more_wind/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
+        dataset5 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_more_flux/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
+        ds1_len = len(dataset1)
+        validation_dataset = Subset(dataset1, range(ds1_len//2))
+        train_datset = ConcatDataset((dataset2,dataset3,dataset4, dataset5, 
+            Subset(dataset1, range(ds1_len//2, ds1_len+1))))
 
-    b = len(global_dataset)
-    train_set_len = int(0.9*b)
-    valid_set_len = b - train_set_len
-    train_dataset, validation_dataset = random_split(global_dataset, [train_set_len, valid_set_len])
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
     # validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
