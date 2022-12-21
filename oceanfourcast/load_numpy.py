@@ -6,6 +6,7 @@ import numpy as np
 import json
 from torchvision import transforms
 import click
+import glob
 
 @click.command()
 @click.option("--xarray_data_file", default="./dynDiag.nc")
@@ -56,6 +57,41 @@ def save_numpy_file_from_xarray(xarray_data_file):
         np.savez(numpy_stats_file, means=means, stdevs=stdevs, timemeans=timemeans, timestdevs=timestdevs)
 
 
+@click.command()
+@click.option("--data_rootdir", default="./")
+def save_numpy_files_from_xarrays(data_rootdir):
+    file_pattern = os.path.join(data_rootdir, "**", "dynDiags.npy")
+    files = glob.iglob(file_pattern, recursive=True)
+    f = next(files)
+    print(f"Working on {f}")
+    data = np.load(f, mmap_mode='r')
+    nt = data.shape[0]
+    global_means = nt*np.mean(data, axis=[0,2,3])
+    global_stdevs = nt*np.stdevs(data, axis=[0,2,3])
+    global_time_steps = nt
+
+    for f in files:
+        print(f"Working on {f}")
+        data = np.load(f, mmap_mode='r')
+        nt = data.shape[0]
+        sim_means = np.mean(data, axis=[0,2,3])
+        sim_stdevs = np.stdevs(data, axis=[0,2,3])
+        global_means += nt*sim_means
+        global_stdevs += nt*sim_stdevs
+        global_time_steps += nt
+
+    global_means /= global_time_steps
+    global_stdevs /= global_time_steps
+
+    print("Saving data...")
+    file_pattern = os.path.join(data_rootdir, "**", "dynDiags.npy")
+    files = glob.iglob(file_pattern, recursive=True)
+    for f in files:
+        data_dir = os.path.dirname(f)
+        global_stats_file = os.path.join(data_dir, "dynDiagsGlobalStats.npz")
+        np.savez(global_stats_file, means=global_means, stdevs=global_stdevs)
+
+
 def create_forcing_arrays(xarray_data_file):
     with xr.open_dataset(xarray_data_file, decode_times=False) as ds:
         x = ds.X.values
@@ -87,7 +123,7 @@ if __name__ == "__main__":
 
 
 class OceanDataset(Dataset):
-    def __init__(self, data_file, tslag=3, spinupts=0, fine_tune=False, device='cpu'):
+    def __init__(self, data_file, tslag=3, spinupts=0, fine_tune=False, device='cpu', multi_expt_normalize=False):
         self.tslag = tslag
         self.spinupts = spinupts
 
@@ -98,11 +134,12 @@ class OceanDataset(Dataset):
             mmap_mode = 'r'
 
         self.data = np.load(data_file, mmap_mode=mmap_mode)[spinupts:]
-        stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
+        if multi_expt_normalize is True:
+            stats_file = np.load(os.path.join(data_dir, "dynDiagsGlobalStats.npz"))
+        else:
+            stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
         self.means = stats_file['means']
         self.stdevs = stats_file['stdevs']
-        self.timemeans = stats_file['timemeans']
-        self.timestdevs = stats_file['timestdevs']
 
         self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
         self.target_transform = transforms.Normalize(mean=self.means, std=self.stdevs)

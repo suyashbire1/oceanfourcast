@@ -58,8 +58,8 @@ class Experiment():
 
         with torch.no_grad():
             yi, yip1 = ds[timestep]                     # yi, yi + tau
-            yi = yi.unsqueeze(0)
-            yip1 = yip1.unsqueeze(0)
+            yi = yi.unsqueeze(0).to(device, dtype=torch.float)
+            yip1 = yip1.unsqueeze(0).to(device, dtype=torch.float)
             yip1hat = model(yi)                         # fourcastnet predicted yi + tau
 
             # yip1 = yip1*ds.stdevs[:,np.newaxis,np.newaxis] + ds.means[:,np.newaxis,np.newaxis]
@@ -67,11 +67,11 @@ class Experiment():
             # yip1hat = yip1hat*ds.stdevs[:,np.newaxis,np.newaxis] + ds.means[:,np.newaxis,np.newaxis]
 
         if cmaps is None:
-            cmaps = ['RdBu_r','RdBu_r','RdBu_r','RdBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r']
+            cmaps = ['RdBu_r','RdBu_r','RdBu_r','RdBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r','RdYlBu_r', 'RdBu_r']
         if labels is None:
-            labels = ['U_surf', 'umid', 'V_surf', 'vmid', 'T_surf', 'thetamid', 'P_surf', 'pmid', 'pbot']
+            labels = ['U_surf', 'umid', 'V_surf', 'vmid', 'T_surf', 'thetamid', 'P_surf', 'pmid', 'pbot', 'Psi']
         with plt.style.context(('labelsize15')):
-            fig, ax = plt.subplots(9,3, sharex=True, sharey=True, figsize=(15,35))
+            fig, ax = plt.subplots(10,3, sharex=True, sharey=True, figsize=(15,35))
             lon, lat = ds.img_size
             lon = np.linspace(0, 62, lon)
             lat = np.linspace(10, 72, lat)
