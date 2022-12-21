@@ -107,6 +107,79 @@ class Experiment():
             #fig.colorbar(im, ax=ax.ravel(), shrink=0.3)
         return fig
 
+
+    def anomaly_correlation_coefficient_lw(self, ni, nf, data_file=None, device='cpu', channel=9):
+        model = self.model
+        if data_file is None:
+            data_file = self.data_file
+        ds = load.OceanDataset(data_file, spinupts=self.spinupts, tslag=self.tslag, device=device)
+        _, nlat = ds.img_size
+        lat = np.linspace(10, 72, nlat)
+        latrad = np.deg2rad(lat)
+        lw = nlat*np.cos(latrad)/np.sum(np.cos(latrad))
+        lw = lw[:, np.newaxis]
+
+        data_dir = os.path.dirname(data_file)
+        stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
+        timemeans = stats_file['timemeans']
+        timemeans = timemeans[:self.out_channels]
+        stats_file = np.load(os.path.join(data_dir, "dynDiagsGlobalStats.npz"))
+        means = stats_file['means'][:, np.newaxis, np.newaxis]
+        means = means[:self.out_channels]
+        stdevs = stats_file['stdevs'][:, np.newaxis, np.newaxis]
+        stdevs = stdevs[:self.out_channels]
+
+        accs = []
+        with torch.no_grad():
+            ynext = ds[ni][0].unsqueeze(0).to(device, dtype=torch.float)                # yi
+            for i, n in enumerate(range(ni, nf)):
+                yip1 = ds[n][1].unsqueeze(0).to(device, dtype=torch.float)                # yi + tau
+                yip1hat = model(ynext)
+                truth = yip1[:,:self.out_channels].detach().numpy().squeeze()
+                pred = yip1hat.detach().numpy().squeeze()
+                truthanom = (stdevs*truth+means) - timemeans
+                predanom = (stdevs*pred+means) - timemeans
+                truthanom = truthanom[channel]
+                predanom = predanom[channel]
+                acc = np.sum(truthanom*predanom*lw)/np.sqrt(np.sum(lw*truthanom**2)*np.sum(lw*predanom**2))
+                accs.append(acc)
+                ynext = torch.cat((yip1hat,yip1[:, self.out_channels:]), dim=1)
+        return accs
+
+    def truth_pred_difference(self, ni, nf, data_file=None, device='cpu'):
+        model = self.model
+        if data_file is None:
+            data_file = self.data_file
+        ds = load.OceanDataset(data_file, spinupts=self.spinupts, tslag=self.tslag, device=device)
+
+        lon, lat = ds.img_size
+        lon = np.linspace(0, 62, lon)
+        lat = np.linspace(10, 72, lat)
+
+        _, nlat = ds.img_size
+        lat = np.linspace(10, 72, nlat)
+        latrad = np.deg2rad(lat)
+        lw = nlat*np.cos(latrad)/np.sum(np.cos(latrad))
+        lw = lw[:, np.newaxis]
+
+        data_dir = os.path.dirname(data_file)
+        stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
+        timemeans = stats_file['timemeans']
+        timemeans = timemeans[:self.out_channels]
+
+        accs = []
+        with torch.no_grad():
+            ynext = ds[ni][0].unsqueeze(0).to(device, dtype=torch.float)                # yi
+            for i, n in enumerate(range(ni, nf)):
+                yip1 = ds[n][1].unsqueeze(0).to(device, dtype=torch.float)                # yi + tau
+                yip1hat = model(ynext)
+                truth = yip1[:,:self.out_channels].detach().numpy().squeeze()
+                pred = yip1hat.detach().numpy().squeeze()
+                difference = truth - pred
+                accs.append(difference)
+                ynext = torch.cat((yip1hat,yip1[:, self.out_channels:]), dim=1)
+        return accs, lon, lat
+
 def create_experiments_dict(root_dir):
     logfile_pattern = os.path.join(root_dir, "**", "logfile.json")
     files = glob.iglob(logfile_pattern, recursive=True)
