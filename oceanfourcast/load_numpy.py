@@ -119,7 +119,8 @@ def v_corner_to_center(v):
     return (v[...,:-1,:] + v[...,1:,:])/2
 
 if __name__ == "__main__":
-    save_numpy_file_from_xarray()
+    #save_numpy_file_from_xarray()
+    save_global_stats()
 
 
 class OceanDataset(Dataset):
