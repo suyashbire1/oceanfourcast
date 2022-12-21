@@ -59,7 +59,7 @@ def save_numpy_file_from_xarray(xarray_data_file):
 
 @click.command()
 @click.option("--data_rootdir", default="./")
-def save_numpy_files_from_xarrays(data_rootdir):
+def save_global_stats(data_rootdir):
     file_pattern = os.path.join(data_rootdir, "**", "dynDiags.npy")
     files = glob.iglob(file_pattern, recursive=True)
     f = next(files)
