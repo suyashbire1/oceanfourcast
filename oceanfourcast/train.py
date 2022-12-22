@@ -75,14 +75,16 @@ def main(name, output_dir, data_file, epochs, batch_size,
         train_dataset, validation_dataset = random_split(global_dataset, [train_set_len, valid_set_len])
     else:
         dataset1 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_1/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
+        h, w = dataset1.img_size
+        in_channels = dataset1.channels
         dataset2 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_less_wind/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
         dataset3 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_less_flux/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
         dataset4 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_more_wind/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
         dataset5 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_more_flux/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
         ds1_len = len(dataset1)
         validation_dataset = Subset(dataset1, range(ds1_len//2))
-        train_datset = ConcatDataset((dataset2,dataset3,dataset4, dataset5, 
-            Subset(dataset1, range(ds1_len//2, ds1_len+1))))
+        train_dataset = ConcatDataset((dataset2,dataset3,dataset4, dataset5, 
+            Subset(dataset1, range(ds1_len//2, ds1_len))))
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
