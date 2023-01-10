@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import xarray as xr
 from collections import defaultdict
-from oceanfourcast import load_numpy as load, fourcastnet
+from oceanfourcast import load_numpy as load, fourcastnet, unet
 import importlib
 
 importlib.reload(load)
