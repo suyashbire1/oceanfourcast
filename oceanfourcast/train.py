@@ -149,7 +149,9 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
     elif modelstr == 'unet':
         from oceanfourcast import unet
         importlib.reload(unet)
-        model = unet.UNet(n_channels=in_channels, n_classes=out_channels)
+        model = unet.UNet(n_channels=in_channels,
+                          n_classes=out_channels,
+                          device=device)
     else:
         print(f'argument modelstr {modelstr} invalid')
 
