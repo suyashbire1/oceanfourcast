@@ -16,8 +16,10 @@ from functools import partial
 from oceanfourcast import load_numpy as load
 from oceanfourcast import fourcastnet
 import importlib
+
 importlib.reload(load)
 importlib.reload(fourcastnet)
+
 
 @click.command()
 @click.option("--name", default="experiment")
@@ -42,10 +44,9 @@ importlib.reload(fourcastnet)
 @click.option("--optimizerstr", default='adam')
 @click.option("--modelstr", default="fourcastnet")
 @click.option("--fine_tune", default=False)
-def main(name, output_dir, data_file, epochs, batch_size,
-         learning_rate, embed_dims, patch_size, depth,
-         num_blocks, mlp_ratio, sparsity, device, tslag,
-         spinupts, drop_rate, out_channels, max_runtime_hours,
+def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
+         embed_dims, patch_size, depth, num_blocks, mlp_ratio, sparsity,
+         device, tslag, spinupts, drop_rate, out_channels, max_runtime_hours,
          resume_from_chkpt, optimizerstr, modelstr, fine_tune):
 
     start_time = datetime.now()
@@ -64,63 +65,110 @@ def main(name, output_dir, data_file, epochs, batch_size,
 
     if data_file is not None:
         # train_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag)
-        global_dataset = load.OceanDataset(data_file, spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune)
+        global_dataset = load.OceanDataset(data_file,
+                                           spinupts=spinupts,
+                                           tslag=tslag,
+                                           device=device,
+                                           fine_tune=fine_tune)
         h, w = global_dataset.img_size
         # in_channels = len(train_dataset.channels)
         in_channels = global_dataset.channels
 
         b = len(global_dataset)
-        train_set_len = int(0.9*b)
+        train_set_len = int(0.9 * b)
         valid_set_len = b - train_set_len
-        train_dataset, validation_dataset = random_split(global_dataset, [train_set_len, valid_set_len])
+        train_dataset, validation_dataset = random_split(
+            global_dataset, [train_set_len, valid_set_len])
     else:
-        dataset1 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_1/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
+        dataset1 = load.OceanDataset(
+            "/home/bire/nobackup/ofn_run3_data/run3_1/dynDiags.npy",
+            spinupts=spinupts,
+            tslag=tslag,
+            device=device,
+            fine_tune=fine_tune,
+            multi_expt_normalize=True)
         h, w = dataset1.img_size
         in_channels = dataset1.channels
-        dataset2 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_less_wind/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
-        dataset3 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_less_flux/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
-        dataset4 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_more_wind/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
-        dataset5 = load.OceanDataset("/home/bire/nobackup/ofn_run3_data/run3_more_flux/dynDiags.npy", spinupts=spinupts, tslag=tslag, device=device, fine_tune=fine_tune, multi_expt_normalize=True)
+        dataset2 = load.OceanDataset(
+            "/home/bire/nobackup/ofn_run3_data/run3_less_wind/dynDiags.npy",
+            spinupts=spinupts,
+            tslag=tslag,
+            device=device,
+            fine_tune=fine_tune,
+            multi_expt_normalize=True)
+        dataset3 = load.OceanDataset(
+            "/home/bire/nobackup/ofn_run3_data/run3_less_flux/dynDiags.npy",
+            spinupts=spinupts,
+            tslag=tslag,
+            device=device,
+            fine_tune=fine_tune,
+            multi_expt_normalize=True)
+        dataset4 = load.OceanDataset(
+            "/home/bire/nobackup/ofn_run3_data/run3_more_wind/dynDiags.npy",
+            spinupts=spinupts,
+            tslag=tslag,
+            device=device,
+            fine_tune=fine_tune,
+            multi_expt_normalize=True)
+        dataset5 = load.OceanDataset(
+            "/home/bire/nobackup/ofn_run3_data/run3_more_flux/dynDiags.npy",
+            spinupts=spinupts,
+            tslag=tslag,
+            device=device,
+            fine_tune=fine_tune,
+            multi_expt_normalize=True)
         ds1_len = len(dataset1)
-        validation_dataset = Subset(dataset1, range(ds1_len//2))
-        train_dataset = ConcatDataset((dataset2,dataset3,dataset4, dataset5, 
-            Subset(dataset1, range(ds1_len//2, ds1_len))))
+        validation_dataset = Subset(dataset1, range(ds1_len // 2))
+        train_dataset = ConcatDataset((dataset2, dataset3, dataset4, dataset5,
+                                       Subset(dataset1,
+                                              range(ds1_len // 2, ds1_len))))
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
+    train_dataloader = DataLoader(train_dataset,
+                                  batch_size=batch_size,
+                                  drop_last=True,
+                                  shuffle=True)
 
     # validation_dataset = load.OceanDataset(data_file, for_validate=True, spinupts=spinupts, tslag=tslag)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, drop_last=True)
+    validation_dataloader = DataLoader(validation_dataset,
+                                       batch_size=batch_size,
+                                       drop_last=True)
 
     if modelstr == 'fourcastnet':
         model = fourcastnet.AFNONet(embed_dim=embed_dims,
-                    patch_size=patch_size,
-                    sparsity=sparsity,
-                    img_size=[h, w],
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    norm_layer=partial(nn.LayerNorm, eps=1e-6),
-                    device=device,
-                    drop_rate=drop_rate,
-                    mlp_ratio=mlp_ratio,
-                    depth=depth,
-                    n_blocks=num_blocks).to(device)
+                                    patch_size=patch_size,
+                                    sparsity=sparsity,
+                                    img_size=[h, w],
+                                    in_channels=in_channels,
+                                    out_channels=out_channels,
+                                    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                                    device=device,
+                                    drop_rate=drop_rate,
+                                    mlp_ratio=mlp_ratio,
+                                    depth=depth,
+                                    n_blocks=num_blocks).to(device)
     elif modelstr == 'unet':
         from oceanfourcast import unet
         importlib.reload(unet)
-        model = unet.UNet(n_channels=in_channels,
-                    n_classes=out_channels)
+        model = unet.UNet(n_channels=in_channels, n_classes=out_channels)
     else:
         print(f'argument modelstr {modelstr} invalid')
 
     criterion = nn.MSELoss()
     optimizers = {
-            'adam': torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.95)),
-            'adamw': torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.95)),
-            'sgd': torch.optim.SGD(model.parameters(), lr=learning_rate)
-            }
+        'adam':
+        torch.optim.Adam(model.parameters(),
+                         lr=learning_rate,
+                         betas=(0.9, 0.95)),
+        'adamw':
+        torch.optim.AdamW(model.parameters(),
+                          lr=learning_rate,
+                          betas=(0.9, 0.95)),
+        'sgd':
+        torch.optim.SGD(model.parameters(), lr=learning_rate)
+    }
 
     if resume_from_chkpt:
-        pattern = os.path.join(output_dir,"chkpt_epoch_*")
+        pattern = os.path.join(output_dir, "chkpt_epoch_*")
         chkpt_file = get_latest_checkpoint_file(pattern)
         print(f'Resuming from checkpoint {chkpt_file}...')
         checkpoint = torch.load(chkpt_file)
@@ -154,16 +202,20 @@ def main(name, output_dir, data_file, epochs, batch_size,
         train_func = train_one_epoch
         validate_func = validate_one_epoch
 
-    for epoch in range(begin_epoch, epochs+1):
+    for epoch in range(begin_epoch, epochs + 1):
         epoch_start_time = datetime.now()
-        print(f'EPOCH {epoch}:-----------------------------------------------------------')
+        print(
+            f'EPOCH {epoch}:-----------------------------------------------------------'
+        )
 
         model.train(True)
         print('Training...')
-        avg_loss = train_func(model, criterion, train_dataloader, optimizer, device, training_loss_logger)
+        avg_loss = train_func(model, criterion, train_dataloader, optimizer,
+                              device, training_loss_logger)
         model.train(False)
         print('Validating...')
-        avg_vloss = validate_func(model, criterion, validation_dataloader, device)
+        avg_vloss = validate_func(model, criterion, validation_dataloader,
+                                  device)
         print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
         print(f'Epoch evaluation time: {(datetime.now()-epoch_start_time)}')
         avg_training_loss_logger.append(avg_loss)
@@ -181,60 +233,62 @@ def main(name, output_dir, data_file, epochs, batch_size,
             break
 
     print('Saving checkpoint...')
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizerstr': optimizerstr,
-        'optimizer_state_dict': optimizer.state_dict(),
-        'best_vloss': best_vloss,
-        'best_vloss_epoch': best_vloss_epoch,
-        'training_loss_logger': training_loss_logger,
-        'avg_training_loss_logger': avg_training_loss_logger,
-        'validation_loss_logger': validation_loss_logger},
-               os.path.join(output_dir,f"chkpt_epoch_{epoch}"))
+    torch.save(
+        {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizerstr': optimizerstr,
+            'optimizer_state_dict': optimizer.state_dict(),
+            'best_vloss': best_vloss,
+            'best_vloss_epoch': best_vloss_epoch,
+            'training_loss_logger': training_loss_logger,
+            'avg_training_loss_logger': avg_training_loss_logger,
+            'validation_loss_logger': validation_loss_logger
+        }, os.path.join(output_dir, f"chkpt_epoch_{epoch}"))
 
     print('Writing logs...')
-    logfile_data = dict(
-        name=name,
-        data_file=data_file,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        optimizerstr=optimizerstr,
-        embed_dims=embed_dims,
-        patch_size=patch_size,
-        image_height=h,
-        image_width=w,
-        num_blocks=num_blocks,
-        mlp_ratio=mlp_ratio,
-        depth=depth,
-        sparsity=sparsity,
-        device=device,
-        tslag=tslag,
-        spinupts=spinupts,
-        drop_rate=drop_rate,
-        in_channels=in_channels,
-        out_channels=out_channels,
-        fine_tune=fine_tune,
-        best_vloss=best_vloss,
-        best_vloss_epoch=best_vloss_epoch,
-        runtime=str(datetime.now() - start_time),
-        training_loss = training_loss_logger,
-        avg_training_loss = avg_training_loss_logger,
-        validation_loss = validation_loss_logger,
-        version = get_git_revision_hash(load)
-    )
+    logfile_data = dict(name=name,
+                        data_file=data_file,
+                        epochs=epochs,
+                        batch_size=batch_size,
+                        learning_rate=learning_rate,
+                        optimizerstr=optimizerstr,
+                        embed_dims=embed_dims,
+                        patch_size=patch_size,
+                        image_height=h,
+                        image_width=w,
+                        num_blocks=num_blocks,
+                        mlp_ratio=mlp_ratio,
+                        depth=depth,
+                        sparsity=sparsity,
+                        device=device,
+                        tslag=tslag,
+                        spinupts=spinupts,
+                        modelstr=modelstr,
+                        drop_rate=drop_rate,
+                        in_channels=in_channels,
+                        out_channels=out_channels,
+                        fine_tune=fine_tune,
+                        best_vloss=best_vloss,
+                        best_vloss_epoch=best_vloss_epoch,
+                        runtime=str(datetime.now() - start_time),
+                        training_loss=training_loss_logger,
+                        avg_training_loss=avg_training_loss_logger,
+                        validation_loss=validation_loss_logger,
+                        version=get_git_revision_hash(load))
 
-    with open(os.path.join(output_dir,"logfile.json"), "w") as f:
+    with open(os.path.join(output_dir, "logfile.json"), "w") as f:
         f.write(json.dumps(logfile_data, indent=4))
 
     # train_dataset.close()
     # validation_dataset.close()
 
-def train_one_epoch(model, criterion, data_loader, optimizer, device, training_loss_logger):
+
+def train_one_epoch(model, criterion, data_loader, optimizer, device,
+                    training_loss_logger):
     running_loss = 0.
     avg_loss = 0.
-    for i, (x,y) in enumerate(data_loader):
+    for i, (x, y) in enumerate(data_loader):
         x = x.to(device, dtype=torch.float)
         y = y.to(device, dtype=torch.float)
 
@@ -251,17 +305,19 @@ def train_one_epoch(model, criterion, data_loader, optimizer, device, training_l
         running_loss += loss.item()
         avg_loss += loss.item()
         if i % 10 == 9:
-            last_loss = running_loss / 10 # loss per batch
+            last_loss = running_loss / 10  # loss per batch
             training_loss_logger.append(last_loss)
             print(f'batch {i+1}, loss: {last_loss}')
             running_loss = 0.
 
-    return avg_loss/(i+1)
+    return avg_loss / (i + 1)
 
-def train_one_epoch_finetune(model, criterion, data_loader, optimizer, device, training_loss_logger):
+
+def train_one_epoch_finetune(model, criterion, data_loader, optimizer, device,
+                             training_loss_logger):
     running_loss = 0.
     avg_loss = 0.
-    for i, (x,(y1,y2)) in enumerate(data_loader):
+    for i, (x, (y1, y2)) in enumerate(data_loader):
         x = x.to(device, dtype=torch.float)
         y1 = y1.to(device, dtype=torch.float)
         y2 = y2.to(device, dtype=torch.float)
@@ -270,7 +326,7 @@ def train_one_epoch_finetune(model, criterion, data_loader, optimizer, device, t
 
         out1 = model(x)
         loss1 = criterion(out1, y1[:, :model.Co])
-        out1 = torch.cat((out1,y1[:, model.Co:]), dim=1)
+        out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
         out2 = model(out1)
 
         loss = loss1 + criterion(out2, y2[:, :model.Co])
@@ -282,17 +338,18 @@ def train_one_epoch_finetune(model, criterion, data_loader, optimizer, device, t
         running_loss += loss.item()
         avg_loss += loss.item()
         if i % 10 == 9:
-            last_loss = running_loss / 10 # loss per batch
+            last_loss = running_loss / 10  # loss per batch
             training_loss_logger.append(last_loss)
             print(f'batch {i+1}, loss: {last_loss}')
             running_loss = 0.
 
-    return avg_loss/(i+1)
+    return avg_loss / (i + 1)
+
 
 def validate_one_epoch(model, criterion, data_loader, device):
     with torch.no_grad():
         running_vloss = 0.0
-        for i, (x,y) in enumerate(data_loader):
+        for i, (x, y) in enumerate(data_loader):
             x = x.to(device, dtype=torch.float)
             y = y.to(device, dtype=torch.float)
 
@@ -300,27 +357,30 @@ def validate_one_epoch(model, criterion, data_loader, device):
 
             vloss = criterion(out, y[:, :model.Co])
             running_vloss += vloss.item()
-    return running_vloss / (i+1)
+    return running_vloss / (i + 1)
+
 
 def validate_one_epoch_finetune(model, criterion, data_loader, device):
     with torch.no_grad():
         running_vloss = 0.0
-        for i, (x,(y1,y2)) in enumerate(data_loader):
+        for i, (x, (y1, y2)) in enumerate(data_loader):
             x = x.to(device, dtype=torch.float)
             y1 = y1.to(device, dtype=torch.float)
             y2 = y2.to(device, dtype=torch.float)
 
             out1 = model(x)
             loss1 = criterion(out1, y1[:, :model.Co])
-            out1 = torch.cat((out1,y1[:, model.Co:]), dim=1)
+            out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
             out2 = model(out1)
             vloss = loss1 + criterion(out2, y2[:, :model.Co])
             running_vloss += vloss.item()
-    return running_vloss / (i+1)
+    return running_vloss / (i + 1)
+
 
 #def check_epoch_metrics(model, dataset, device):
 #    with torch.no_grad():
 #    acc
+
 
 def get_latest_checkpoint_file(pattern):
 
@@ -332,12 +392,15 @@ def get_latest_checkpoint_file(pattern):
     lastfile = files[-1]
     return lastfile
 
+
 def get_git_revision_hash(module):
     cwd = os.getcwd()
     os.chdir(os.path.dirname(module.__file__))
-    githash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+    githash = subprocess.check_output(['git', 'rev-parse',
+                                       'HEAD']).decode('ascii').strip()
     os.chdir(cwd)
     return githash
+
 
 # def latitude_weighting(lat_array):
 #     nlat = len(lat_array)
