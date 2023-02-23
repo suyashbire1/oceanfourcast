@@ -81,7 +81,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
             global_dataset, [train_set_len, valid_set_len])
     else:
         dataset1 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_data/run3_2/dynDiags.npy",
+            "/home/bire/nobackup/ofn_run3_2_data/run3_2/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
@@ -90,28 +90,28 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         h, w = dataset1.img_size
         in_channels = dataset1.channels
         dataset2 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_data/run3_2_less_wind/dynDiags.npy",
+            "/home/bire/nobackup/ofn_run3_2_data/run3_2_less_wind/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
             multi_expt_normalize=True)
         dataset3 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_data/run3_2_less_flux/dynDiags.npy",
+            "/home/bire/nobackup/ofn_run3_2_data/run3_2_less_flux/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
             multi_expt_normalize=True)
         dataset4 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_data/run3_2_more_wind/dynDiags.npy",
+            "/home/bire/nobackup/ofn_run3_2_data/run3_2_more_wind/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
             multi_expt_normalize=True)
         dataset5 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_data/run3_2_more_flux/dynDiags.npy",
+            "/home/bire/nobackup/ofn_run3_2_data/run3_2_more_flux/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
