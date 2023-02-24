@@ -1,4 +1,5 @@
 import os
+import sys
 import glob
 import matplotlib.pyplot as plt
 import json
@@ -42,9 +43,8 @@ class Experiment():
 
     def recreate_model(self, epoch=None, device='cpu'):
         if self.modelstr == 'unet':
-            self.model = unet.UNet(n_channels=in_channels,
-                                   n_classes=out_channels,
-                                   device=device)
+            self.model = unet.UNet(n_channels=self.in_channels,
+                                   n_classes=self.out_channels)
         else:
             self.model = fourcastnet.AFNONet(
                 embed_dim=self.embed_dims,
@@ -153,6 +153,7 @@ class Experiment():
     def anomaly_correlation_coefficient_lw(self,
                                            ni,
                                            nf,
+                                           len_=100,
                                            data_file=None,
                                            device='cpu',
                                            channel=9):
@@ -179,25 +180,35 @@ class Experiment():
         stdevs = stats_file['stdevs'][:, np.newaxis, np.newaxis]
         stdevs = stdevs[:self.out_channels]
 
-        accs = []
-        with torch.no_grad():
-            ynext = ds[ni][0].unsqueeze(0).to(device, dtype=torch.float)  # yi
-            for i, n in enumerate(range(ni, nf)):
-                yip1 = ds[n][1].unsqueeze(0).to(device,
-                                                dtype=torch.float)  # yi + tau
-                yip1hat = model(ynext)
-                truth = yip1[:, :self.out_channels].detach().numpy().squeeze()
-                pred = yip1hat.detach().numpy().squeeze()
-                truthanom = (stdevs * truth + means) - timemeans
-                predanom = (stdevs * pred + means) - timemeans
-                truthanom = truthanom[channel]
-                predanom = predanom[channel]
-                acc = np.sum(truthanom * predanom * lw) / np.sqrt(
-                    np.sum(lw * truthanom**2) * np.sum(lw * predanom**2))
-                accs.append(acc)
-                ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]),
-                                  dim=1)
-        return accs
+        acc_array = []
+        for j in range(ni, nf):
+            sys.stdout.write(
+                f"\rCreating correlation for time series beginnning at {j}...")
+            accs = []
+            with torch.no_grad():
+                ynext = ds[j][0].unsqueeze(0).to(device,
+                                                 dtype=torch.float)  # yi
+                for i, n in enumerate(range(j, j + len_, self.tslag)):
+                    yip1 = ds[n][1].unsqueeze(0).to(
+                        device, dtype=torch.float)  # yi + tau
+                    yip1hat = model(ynext)
+                    truth = yip1[:, :self.out_channels].detach().numpy(
+                    ).squeeze()
+                    pred = yip1hat.detach().numpy().squeeze()
+                    truthanom = (stdevs * truth + means) - timemeans
+                    predanom = (stdevs * pred + means) - timemeans
+                    truthanom = truthanom[channel]
+                    predanom = predanom[channel]
+                    acc = np.sum(truthanom * predanom * lw,
+                                 axis=(1, 2)) / np.sqrt(
+                                     np.sum(lw * truthanom**2, axis=(1, 2)) *
+                                     np.sum(lw * predanom**2, axis=(1, 2)))
+                    accs.append(acc)
+                    ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]),
+                                      dim=1)
+            acc_array.append(accs)
+            sys.stdout.write(f"\r{j} done!")
+        return np.array(acc_array)
 
     def truth_pred_difference(self, ni, nf, data_file=None, device='cpu'):
         model = self.model
