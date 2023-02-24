@@ -44,10 +44,11 @@ importlib.reload(fourcastnet)
 @click.option("--optimizerstr", default='adam')
 @click.option("--modelstr", default="fourcastnet")
 @click.option("--fine_tune", default=False)
+@click.option("--mmap_mode", default=None)
 def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
          embed_dims, patch_size, depth, num_blocks, mlp_ratio, sparsity,
          device, tslag, spinupts, drop_rate, out_channels, max_runtime_hours,
-         resume_from_chkpt, optimizerstr, modelstr, fine_tune):
+         resume_from_chkpt, optimizerstr, modelstr, fine_tune, mmap_mode):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -80,48 +81,51 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         train_dataset, validation_dataset = random_split(
             global_dataset, [train_set_len, valid_set_len])
     else:
+        print('Loading datasets...')
+        path_ = "/home/bire/nobackup/"
         dataset1 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_2_data/run3_2/dynDiags.npy",
+            path_+"ofn_run3_2_data/run3_2/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
-            multi_expt_normalize=True)
+            multi_expt_normalize=True, mmap_mode=mmap_mode)
         h, w = dataset1.img_size
         in_channels = dataset1.channels
         dataset2 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_2_data/run3_2_less_wind/dynDiags.npy",
+            path_+"ofn_run3_2_data/run3_2_less_wind/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
-            multi_expt_normalize=True)
+            multi_expt_normalize=True, mmap_mode=mmap_mode)
         dataset3 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_2_data/run3_2_less_flux/dynDiags.npy",
+            path_+"ofn_run3_2_data/run3_2_less_flux/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
-            multi_expt_normalize=True)
+            multi_expt_normalize=True, mmap_mode=mmap_mode)
         dataset4 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_2_data/run3_2_more_wind/dynDiags.npy",
+            path_+"ofn_run3_2_data/run3_2_more_wind/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
-            multi_expt_normalize=True)
+            multi_expt_normalize=True, mmap_mode=mmap_mode)
         dataset5 = load.OceanDataset(
-            "/home/bire/nobackup/ofn_run3_2_data/run3_2_more_flux/dynDiags.npy",
+            path_+"ofn_run3_2_data/run3_2_more_flux/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
-            multi_expt_normalize=True)
+            multi_expt_normalize=True, mmap_mode=mmap_mode)
         ds1_len = len(dataset1)
         validation_dataset = Subset(dataset1, range(ds1_len // 2))
         train_dataset = ConcatDataset((dataset2, dataset3, dataset4, dataset5,
                                        Subset(dataset1,
                                               range(ds1_len // 2, ds1_len))))
+        print('Done loading datasets...')
 
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=batch_size,

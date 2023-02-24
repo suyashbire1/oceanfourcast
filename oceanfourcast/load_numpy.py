@@ -193,15 +193,17 @@ class OceanDataset(Dataset):
                  spinupts=0,
                  fine_tune=False,
                  device='cpu',
-                 multi_expt_normalize=False):
+                 multi_expt_normalize=False,
+                 mmap_mode=None):
         self.tslag = tslag
         self.spinupts = spinupts
 
         data_dir = os.path.dirname(data_file)
 
-        mmap_mode = None
         if device == 'cpu':
             mmap_mode = 'r'
+        else:
+            mmap_mode = mmap_mode
 
         self.data = np.load(data_file, mmap_mode=mmap_mode)[spinupts:]
         if multi_expt_normalize is True:
