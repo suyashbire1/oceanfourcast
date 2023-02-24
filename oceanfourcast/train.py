@@ -84,42 +84,45 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         print('Loading datasets...')
         path_ = "/home/bire/nobackup/"
         dataset1 = load.OceanDataset(
-            path_+"ofn_run3_2_data/run3_2/dynDiags.npy",
+            path_ + "ofn_run3_2_data/wind/run3_2/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
-            multi_expt_normalize=True, mmap_mode=mmap_mode)
+            multi_expt_normalize=True,
+            mmap_mode=mmap_mode)
         h, w = dataset1.img_size
         in_channels = dataset1.channels
         dataset2 = load.OceanDataset(
-            path_+"ofn_run3_2_data/run3_2_less_wind/dynDiags.npy",
+            path_ + "ofn_run3_2_data/wind/run3_2_less_wind/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
-            multi_expt_normalize=True, mmap_mode=mmap_mode)
-        dataset3 = load.OceanDataset(
-            path_+"ofn_run3_2_data/run3_2_less_flux/dynDiags.npy",
-            spinupts=spinupts,
-            tslag=tslag,
-            device=device,
-            fine_tune=fine_tune,
-            multi_expt_normalize=True, mmap_mode=mmap_mode)
+            multi_expt_normalize=True,
+            mmap_mode=mmap_mode)
+        # dataset3 = load.OceanDataset(
+        #     path_+"ofn_run3_2_data/run3_2_less_flux/dynDiags.npy",
+        #     spinupts=spinupts,
+        #     tslag=tslag,
+        #     device=device,
+        #     fine_tune=fine_tune,
+        #     multi_expt_normalize=True, mmap_mode=mmap_mode)
         dataset4 = load.OceanDataset(
-            path_+"ofn_run3_2_data/run3_2_more_wind/dynDiags.npy",
+            path_ + "ofn_run3_2_data/wind/run3_2_more_wind/dynDiags.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
             fine_tune=fine_tune,
-            multi_expt_normalize=True, mmap_mode=mmap_mode)
-        dataset5 = load.OceanDataset(
-            path_+"ofn_run3_2_data/run3_2_more_flux/dynDiags.npy",
-            spinupts=spinupts,
-            tslag=tslag,
-            device=device,
-            fine_tune=fine_tune,
-            multi_expt_normalize=True, mmap_mode=mmap_mode)
+            multi_expt_normalize=True,
+            mmap_mode=mmap_mode)
+        # dataset5 = load.OceanDataset(
+        #     path_+"ofn_run3_2_data/run3_2_more_flux/dynDiags.npy",
+        #     spinupts=spinupts,
+        #     tslag=tslag,
+        #     device=device,
+        #     fine_tune=fine_tune,
+        #     multi_expt_normalize=True, mmap_mode=mmap_mode)
         ds1_len = len(dataset1)
         validation_dataset = Subset(dataset1, range(ds1_len // 2))
         train_dataset = ConcatDataset((dataset2, dataset3, dataset4, dataset5,
@@ -233,7 +236,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
             best_vloss_epoch = epoch
             model_path = os.path.join(output_dir, f'model_epoch_{epoch}')
             torch.save(model.state_dict(), model_path)
-            
+
             print('Saving intermediate checkpoint...')
             torch.save(
                 {

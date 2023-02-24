@@ -202,8 +202,6 @@ class OceanDataset(Dataset):
 
         if device == 'cpu':
             mmap_mode = 'r'
-        else:
-            mmap_mode = mmap_mode
 
         self.data = np.load(data_file, mmap_mode=mmap_mode)[spinupts:]
         if multi_expt_normalize is True:
@@ -211,8 +209,8 @@ class OceanDataset(Dataset):
                 os.path.join(data_dir, "dynDiagsGlobalStats2D.npz"))
         else:
             stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
-        self.means = stats_file['means']
-        self.stdevs = stats_file['stdevs']
+        self.means = stats_file['timemeans']
+        self.stdevs = stats_file['timestdevs']
 
         self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
         self.target_transform = transforms.Normalize(mean=self.means,
