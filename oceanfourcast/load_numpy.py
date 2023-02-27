@@ -113,30 +113,35 @@ def save_global_stats_wind_only(data_rootdir):
     print(f"Working on {f}")
     data = np.load(f, mmap_mode='r')
     nt = data.shape[0]
-    global_means = nt * np.mean(data, axis=(0, 2, 3))
-    global_stdevs = nt * np.std(data, axis=(0, 2, 3))
     global_timemeans = nt * np.mean(data, axis=0)
-    global_timestdevs = nt * np.std(data, axis=0)
     global_time_steps = nt
 
     for f in files:
         print(f"Working on {f}")
         data = np.load(f, mmap_mode='r')
         nt = data.shape[0]
-        sim_means = np.mean(data, axis=(0, 2, 3))
-        sim_stdevs = np.std(data, axis=(0, 2, 3))
-        global_means += nt * sim_means
-        global_stdevs += nt * sim_stdevs
-        sim_timemeans = nt * np.mean(data, axis=0)
-        sim_timestdevs = nt * np.std(data, axis=0)
-        global_timemeans += nt * sim_timemeans
-        global_timestdevs += nt * sim_timestdevs
+        global_timemeans += nt * np.mean(data, axis=0)
         global_time_steps += nt
 
-    global_means /= global_time_steps
-    global_stdevs /= global_time_steps
     global_timemeans /= global_time_steps
-    global_timestdevs /= global_time_steps
+
+    file_pattern = os.path.join(data_rootdir, "**", "dynDiags.npy")
+    files = glob.iglob(file_pattern, recursive=True)
+    f = next(files)
+    print(f"Working on {f}")
+    data = np.load(f, mmap_mode='r')
+    nt = data.shape[0]
+    global_var = (data[0] - global_timemeans)**2
+    for i in range(1, nt):
+        global_var += (data[i] - global_timemeans)**2
+    for f in files:
+        print(f"Working on {f}")
+        data = np.load(f, mmap_mode='r')
+        nt = data.shape[0]
+        for i in range(nt):
+            global_var += (data[i] - global_timemeans)**2
+
+    global_timestdevs = np.sqrt(global_var / global_time_steps)
 
     print("Saving data...")
     file_pattern = os.path.join(data_rootdir, "**", "dynDiags.npy")
@@ -145,8 +150,6 @@ def save_global_stats_wind_only(data_rootdir):
         data_dir = os.path.dirname(f)
         global_stats_file = os.path.join(data_dir, "dynDiagsGlobalStats2D.npz")
         np.savez(global_stats_file,
-                 means=global_means,
-                 stdevs=global_stdevs,
                  timemeans=global_timemeans,
                  timestdevs=global_timestdevs)
 
@@ -219,6 +222,8 @@ class OceanDataset(Dataset):
         self.img_size = [self.data.shape[-1], self.data.shape[-2]]
         self.channels = self.data.shape[1]
         self.fine_tune = fine_tune
+        self.means = np.concatenate((self.means, np.zeros((1,**self.img_size))), axis=0)
+        self.stdevs = np.concatenate((self.stdevs, np.ones((1,**self.img_size))), axis=0)
         if self.fine_tune:
             self.len_ = self.data.shape[0] - self.tslag * 2
             self.getitem = self.getitem_finetune

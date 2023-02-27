@@ -84,7 +84,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         print('Loading datasets...')
         path_ = "/home/bire/nobackup/"
         dataset1 = load.OceanDataset(
-            path_ + "ofn_run3_2_data/wind/run3_2/dynDiags.npy",
+            path_ + "ofn_run3_2_data/wind/run3_2/dynDiags2.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
@@ -94,7 +94,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         h, w = dataset1.img_size
         in_channels = dataset1.channels
         dataset2 = load.OceanDataset(
-            path_ + "ofn_run3_2_data/wind/run3_2_less_wind/dynDiags.npy",
+            path_ + "ofn_run3_2_data/wind/run3_2_less_wind/dynDiags2.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
@@ -109,7 +109,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         #     fine_tune=fine_tune,
         #     multi_expt_normalize=True, mmap_mode=mmap_mode)
         dataset4 = load.OceanDataset(
-            path_ + "ofn_run3_2_data/wind/run3_2_more_wind/dynDiags.npy",
+            path_ + "ofn_run3_2_data/wind/run3_2_more_wind/dynDiags2.npy",
             spinupts=spinupts,
             tslag=tslag,
             device=device,
