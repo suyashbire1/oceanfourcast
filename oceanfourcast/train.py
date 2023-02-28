@@ -125,7 +125,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         #     multi_expt_normalize=True, mmap_mode=mmap_mode)
         ds1_len = len(dataset1)
         validation_dataset = Subset(dataset1, range(ds1_len // 2))
-        train_dataset = ConcatDataset((dataset2, dataset3, dataset4, dataset5,
+        train_dataset = ConcatDataset((dataset2, dataset4,
                                        Subset(dataset1,
                                               range(ds1_len // 2, ds1_len))))
         print('Done loading datasets...')

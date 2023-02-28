@@ -215,21 +215,29 @@ class OceanDataset(Dataset):
         self.means = stats_file['timemeans']
         self.stdevs = stats_file['timestdevs']
 
-        self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
-        self.target_transform = transforms.Normalize(mean=self.means,
-                                                     std=self.stdevs)
 
         self.img_size = [self.data.shape[-1], self.data.shape[-2]]
         self.channels = self.data.shape[1]
         self.fine_tune = fine_tune
-        self.means = np.concatenate((self.means, np.zeros((1,**self.img_size))), axis=0)
-        self.stdevs = np.concatenate((self.stdevs, np.ones((1,**self.img_size))), axis=0)
+        self.means = np.concatenate(
+            (self.means, np.zeros(
+                (1, self.data.shape[-1], self.data.shape[-2]))),
+            axis=0)
+        self.stdevs = np.concatenate(
+            (self.stdevs, np.ones(
+                (1, self.data.shape[-1], self.data.shape[-2]))),
+            axis=0)
         if self.fine_tune:
             self.len_ = self.data.shape[0] - self.tslag * 2
             self.getitem = self.getitem_finetune
         else:
             self.len_ = self.data.shape[0] - self.tslag
             self.getitem = self.getitem_nofinetune
+
+        # self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
+        # self.target_transform = transforms.Normalize(mean=self.means,
+        self.transform = lambda x: (x-self.means)/(self.stdevs + 1e-5)
+        self.target_transform = lambda x: (x-self.means)/(self.stdevs + 1e-5)
 
     def __len__(self):
         return self.len_

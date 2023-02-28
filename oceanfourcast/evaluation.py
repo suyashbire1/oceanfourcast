@@ -73,6 +73,7 @@ class Experiment():
         ds = load.OceanDataset(data_file,
                                spinupts=self.spinupts,
                                tslag=self.tslag,
+                               multi_expt_normalize=True,
                                device=device)
 
         with torch.no_grad():
@@ -163,6 +164,7 @@ class Experiment():
         ds = load.OceanDataset(data_file,
                                spinupts=self.spinupts,
                                tslag=self.tslag,
+                               multi_expt_normalize=True,
                                device=device)
         _, nlat = ds.img_size
         lat = np.linspace(10, 72, nlat)
@@ -171,14 +173,14 @@ class Experiment():
         lw = lw[:, np.newaxis]
 
         data_dir = os.path.dirname(data_file)
-        stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
-        timemeans = stats_file['timemeans']
-        timemeans = timemeans[:self.out_channels]
-        stats_file = np.load(os.path.join(data_dir, "dynDiagsGlobalStats.npz"))
-        means = stats_file['means'][:, np.newaxis, np.newaxis]
-        means = means[:self.out_channels]
-        stdevs = stats_file['stdevs'][:, np.newaxis, np.newaxis]
-        stdevs = stdevs[:self.out_channels]
+        # stats_file = np.load(os.path.join(data_dir, "dynDiagsStats.npz"))
+        # timemeans = stats_file['timemeans']
+        # timemeans = timemeans[:self.out_channels]
+        # stats_file = np.load(os.path.join(data_dir, "dynDiagsGlobalStats.npz"))
+        # means = stats_file['means'][:, np.newaxis, np.newaxis]
+        # means = means[:self.out_channels]
+        # stdevs = stats_file['stdevs'][:, np.newaxis, np.newaxis]
+        # stdevs = stdevs[:self.out_channels]
 
         acc_array = []
         for j in range(ni, nf):
@@ -195,8 +197,10 @@ class Experiment():
                     truth = yip1[:, :self.out_channels].detach().numpy(
                     ).squeeze()
                     pred = yip1hat.detach().numpy().squeeze()
-                    truthanom = (stdevs * truth + means) - timemeans
-                    predanom = (stdevs * pred + means) - timemeans
+                    #truthanom = (stdevs * truth + means) - timemeans
+                    #predanom = (stdevs * pred + means) - timemeans
+                    truthanom = truth
+                    predanom = pred
                     truthanom = truthanom[channel]
                     predanom = predanom[channel]
                     acc = np.sum(truthanom * predanom * lw,
