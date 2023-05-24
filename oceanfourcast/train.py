@@ -125,9 +125,9 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         #     multi_expt_normalize=True, mmap_mode=mmap_mode)
         ds1_len = len(dataset1)
         validation_dataset = Subset(dataset1, range(ds1_len // 2))
-        train_dataset = ConcatDataset((dataset2, dataset4,
-                                       Subset(dataset1,
-                                              range(ds1_len // 2, ds1_len))))
+        train_dataset = ConcatDataset(
+            (dataset2, dataset4, Subset(dataset1, range(ds1_len // 2,
+                                                        ds1_len))))
         print('Done loading datasets...')
 
     train_dataloader = DataLoader(train_dataset,
@@ -155,10 +155,16 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                                     n_blocks=num_blocks).to(device)
     elif modelstr == 'unet':
         from oceanfourcast import unet
-        importlib.reload(unet)
         model = unet.UNet(n_channels=in_channels,
                           n_classes=out_channels,
                           device=device)
+    elif modelstr == 'fno':
+        from neuralop.models import FNO
+        model = FNO(n_modes=(16, 16),
+                    n_layers=depth,
+                    hidden_channels=embed_dims,
+                    in_channels=in_channels,
+                    out_channels=out_channels)
     else:
         print(f'argument modelstr {modelstr} invalid')
 
