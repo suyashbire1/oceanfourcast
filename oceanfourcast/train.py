@@ -164,7 +164,8 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                     n_layers=depth,
                     hidden_channels=embed_dims,
                     in_channels=in_channels,
-                    out_channels=out_channels)
+                    out_channels=out_channels,
+                    device=device).to(device)
     else:
         print(f'argument modelstr {modelstr} invalid')
 
