@@ -166,6 +166,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                     in_channels=in_channels,
                     out_channels=out_channels,
                     device=device).to(device)
+        model.Co = out_channels
     else:
         print(f'argument modelstr {modelstr} invalid')
 
