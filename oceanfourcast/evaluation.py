@@ -151,9 +151,67 @@ class Experiment():
             #fig.colorbar(im, ax=ax.ravel(), shrink=0.3)
         return fig
 
+    def rmse_lw(self,
+                n_samples=100,
+                len_=100,
+                data_file=None,
+                device='cpu',
+                channel=9):
+        model = self.model
+        if data_file is None:
+            data_file = self.data_file
+        ds = load.OceanDataset(data_file,
+                               spinupts=self.spinupts,
+                               tslag=self.tslag,
+                               multi_expt_normalize=True,
+                               device=device)
+        ntime = len(ds) // 2
+        nlon, nlat = ds.img_size
+        lat = np.linspace(10, 72, nlat)
+        latrad = np.deg2rad(lat)
+        lw = nlat * np.cos(latrad) / np.sum(np.cos(latrad))
+        lw = lw[:, np.newaxis]
+
+        data_dir = os.path.dirname(data_file)
+        stats_file = np.load(
+            os.path.join(data_dir, "dynDiagsGlobalStats2D.npz"))
+        means = stats_file['timemeans']
+        means = means[:self.out_channels]
+        stdevs = stats_file['timestdevs']
+        stdevs = stdevs[:self.out_channels]
+
+        ni = np.random.choice(ntime, n_samples)
+        rmse_array = []
+        for j in ni:
+            sys.stdout.write(
+                f"\rCreating correlation for time series beginnning at {j}...")
+            rmses = []
+            with torch.no_grad():
+                ynext = ds[j][0].unsqueeze(0).to(device,
+                                                 dtype=torch.float)  # yi
+                for i, n in enumerate(range(j, j + len_, self.tslag)):
+                    yip1 = ds[n][1].unsqueeze(0).to(
+                        device, dtype=torch.float)  # yi + tau
+                    yip1hat = model(ynext)
+                    truth = yip1[:, :self.out_channels].detach().numpy(
+                    ).squeeze()
+                    pred = yip1hat.detach().numpy().squeeze()
+                    truth = (stdevs * truth + means)
+                    pred = (stdevs * pred + means)
+                    truth = truth[channel]
+                    pred = pred[channel]
+                    rmse = np.sqrt(
+                        np.sum(lw * (truth - pred)**2, axis=(1, 2)) / nlat /
+                        nlon)
+                    rmses.append(rmse)
+                    ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]),
+                                      dim=1)
+            rmse_array.append(rmses)
+            sys.stdout.write(f"\r{j} done!")
+        return np.array(rmse_array)
+
     def anomaly_correlation_coefficient_lw(self,
-                                           ni,
-                                           nf,
+                                           n_samples=100,
                                            len_=100,
                                            data_file=None,
                                            device='cpu',
@@ -166,6 +224,7 @@ class Experiment():
                                tslag=self.tslag,
                                multi_expt_normalize=True,
                                device=device)
+        ntime = len(ds) // 2
         _, nlat = ds.img_size
         lat = np.linspace(10, 72, nlat)
         latrad = np.deg2rad(lat)
@@ -182,8 +241,9 @@ class Experiment():
         # stdevs = stats_file['stdevs'][:, np.newaxis, np.newaxis]
         # stdevs = stdevs[:self.out_channels]
 
+        ni = np.random.choice(ntime, n_samples)
         acc_array = []
-        for j in range(ni, nf):
+        for j in ni:
             sys.stdout.write(
                 f"\rCreating correlation for time series beginnning at {j}...")
             accs = []
@@ -254,8 +314,12 @@ class Experiment():
         return accs, lon, lat
 
 
-def create_experiments_dict(root_dir):
-    logfile_pattern = os.path.join(root_dir, "**", "logfile.json")
+def create_experiments_dict(root_dir, pretrain=True):
+    if pretrain:
+        logfile_str = "pretrain/logfile.json"
+    else:
+        logfile_str = "finetune/logfile.json"
+    logfile_pattern = os.path.join(root_dir, "**", logfile_str)
     files = glob.iglob(logfile_pattern, recursive=True)
     expts = []
     for f in files:
