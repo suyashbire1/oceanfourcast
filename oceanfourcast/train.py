@@ -323,7 +323,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
     running_loss = 0.
     avg_loss = 0.
     print_every = 10
-    iters = len(data_loader) / print_every
+    iters = len(data_loader) // print_every
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, iters)
     for i, (x, y) in enumerate(data_loader):
@@ -359,7 +359,7 @@ def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
     running_loss = 0.
     avg_loss = 0.
     print_every = 10
-    iters = len(data_loader) / print_every
+    iters = len(data_loader) // print_every
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, iters)
     for i, (x, (y1, y2)) in enumerate(data_loader):
