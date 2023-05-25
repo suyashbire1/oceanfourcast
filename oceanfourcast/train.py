@@ -45,10 +45,12 @@ importlib.reload(fourcastnet)
 @click.option("--modelstr", default="fourcastnet")
 @click.option("--fine_tune", default=False)
 @click.option("--mmap_mode", default=None)
+@click.option("--nfmodes", default=16)
 def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
          embed_dims, patch_size, depth, num_blocks, mlp_ratio, sparsity,
          device, tslag, spinupts, drop_rate, out_channels, max_runtime_hours,
-         resume_from_chkpt, optimizerstr, modelstr, fine_tune, mmap_mode):
+         resume_from_chkpt, optimizerstr, modelstr, fine_tune, mmap_mode,
+         nfmodes):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -160,7 +162,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                           device=device)
     elif modelstr == 'fno':
         from neuralop.models import FNO
-        model = FNO(n_modes=(16, 16),
+        model = FNO(n_modes=(nfmodes, nfmodes),
                     n_layers=depth,
                     hidden_channels=embed_dims,
                     in_channels=in_channels,
@@ -290,6 +292,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                         data_file=data_file,
                         epochs=epochs,
                         batch_size=batch_size,
+                        nfmodes=nfmodes,
                         learning_rate=learning_rate,
                         optimizerstr=optimizerstr,
                         embed_dims=embed_dims,
