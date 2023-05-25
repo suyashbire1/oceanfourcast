@@ -194,6 +194,9 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         optimizer = optimizers[optimizerstr]
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         begin_epoch = checkpoint['epoch'] + 1
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=epochs, last_epoch=begin_epoch)
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         if fine_tune:
             best_vloss = 1000000.
             best_vloss_epoch = 1
@@ -206,6 +209,8 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
     else:
         optimizer = optimizers[optimizerstr]
         begin_epoch = 1
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=epochs, last_epoch=begin_epoch)
         training_loss_logger = []
         avg_training_loss_logger = []
         validation_loss_logger = []
@@ -228,15 +233,16 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         model.train(True)
         print('Training...')
         avg_loss = train_func(model, criterion, train_dataloader, optimizer,
-                              device, training_loss_logger)
+                              scheduler, device, training_loss_logger)
         model.train(False)
         print('Validating...')
         avg_vloss = validate_func(model, criterion, validation_dataloader,
-                                  device)
+                                  scheduler, device)
         print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
         print(f'Epoch evaluation time: {(datetime.now()-epoch_start_time)}')
         avg_training_loss_logger.append(avg_loss)
         validation_loss_logger.append(avg_vloss)
+        scheduler.step()
 
         # Track best performance, and save the model's state
         if avg_vloss < best_vloss:
@@ -252,6 +258,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                     'model_state_dict': model.state_dict(),
                     'optimizerstr': optimizerstr,
                     'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
                     'best_vloss': best_vloss,
                     'best_vloss_epoch': best_vloss_epoch,
                     'training_loss_logger': training_loss_logger,
@@ -270,6 +277,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
             'model_state_dict': model.state_dict(),
             'optimizerstr': optimizerstr,
             'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
             'best_vloss': best_vloss,
             'best_vloss_epoch': best_vloss_epoch,
             'training_loss_logger': training_loss_logger,
@@ -315,8 +323,8 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
     # validation_dataset.close()
 
 
-def train_one_epoch(model, criterion, data_loader, optimizer, device,
-                    training_loss_logger):
+def train_one_epoch(model, criterion, data_loader, optimizer, scheduler,
+                    device, training_loss_logger):
     running_loss = 0.
     avg_loss = 0.
     for i, (x, y) in enumerate(data_loader):
@@ -344,8 +352,8 @@ def train_one_epoch(model, criterion, data_loader, optimizer, device,
     return avg_loss / (i + 1)
 
 
-def train_one_epoch_finetune(model, criterion, data_loader, optimizer, device,
-                             training_loss_logger):
+def train_one_epoch_finetune(model, criterion, data_loader, optimizer,
+                             scheduler, device, training_loss_logger):
     running_loss = 0.
     avg_loss = 0.
     for i, (x, (y1, y2)) in enumerate(data_loader):
