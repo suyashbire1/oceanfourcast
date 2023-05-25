@@ -324,7 +324,8 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
     avg_loss = 0.
     print_every = 10
     iters = len(data_loader) / print_every
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, iters)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, iters)
     for i, (x, y) in enumerate(data_loader):
         x = x.to(device, dtype=torch.float)
         y = y.to(device, dtype=torch.float)
@@ -346,7 +347,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
             last_loss = running_loss / 10  # loss per batch
             training_loss_logger.append(last_loss)
             print(
-                f'batch {i+1}, loss: {last_loss}, lr: {scheduler.get_last_lr()[0]:0.2E}'
+                f'batch {i+1}, loss: {last_loss:0.2E}, lr: {scheduler.get_last_lr()[0]:0.2E}'
             )
             running_loss = 0.
 
@@ -359,7 +360,8 @@ def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
     avg_loss = 0.
     print_every = 10
     iters = len(data_loader) / print_every
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, iters)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, iters)
     for i, (x, (y1, y2)) in enumerate(data_loader):
         x = x.to(device, dtype=torch.float)
         y1 = y1.to(device, dtype=torch.float)
@@ -385,7 +387,7 @@ def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
             last_loss = running_loss / 10  # loss per batch
             training_loss_logger.append(last_loss)
             print(
-                f'batch {i+1}, loss: {last_loss}, lr: {scheduler.get_last_lr()[0]:0.2E}'
+                f'batch {i+1}, loss: {last_loss:0.2E}, lr: {scheduler.get_last_lr()[0]:0.2E}'
             )
             running_loss = 0.
 
