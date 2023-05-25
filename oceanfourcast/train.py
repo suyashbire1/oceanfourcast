@@ -209,8 +209,8 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
     else:
         optimizer = optimizers[optimizerstr]
         begin_epoch = 1
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=epochs, last_epoch=begin_epoch)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                               T_max=epochs)
         training_loss_logger = []
         avg_training_loss_logger = []
         validation_loss_logger = []
