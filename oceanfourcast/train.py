@@ -239,7 +239,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         model.train(False)
         print('Validating...')
         avg_vloss = validate_func(model, criterion, validation_dataloader,
-                                  scheduler, device)
+                                  device)
         print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
         print(f'Epoch evaluation time: {(datetime.now()-epoch_start_time)}')
         avg_training_loss_logger.append(avg_loss)
