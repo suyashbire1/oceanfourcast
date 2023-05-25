@@ -347,7 +347,9 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
             scheduler.step()
             last_loss = running_loss / 10  # loss per batch
             training_loss_logger.append(last_loss)
-            print(f'batch {i+1}, loss: {last_loss}, lr: {scheduler.get_lr()}')
+            print(
+                f'batch {i+1}, loss: {last_loss}, lr: {scheduler.get_last_lr()[0]:0.2E}'
+            )
             running_loss = 0.
 
     return avg_loss / (i + 1)
@@ -384,7 +386,9 @@ def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
             scheduler.step()
             last_loss = running_loss / 10  # loss per batch
             training_loss_logger.append(last_loss)
-            print(f'batch {i+1}, loss: {last_loss}, lr: {scheduler.get_lr()}')
+            print(
+                f'batch {i+1}, loss: {last_loss}, lr: {scheduler.get_last_lr()[0]:0.2E}'
+            )
             running_loss = 0.
 
     return avg_loss / (i + 1)
