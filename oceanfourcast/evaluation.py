@@ -8,6 +8,7 @@ import torch
 import xarray as xr
 from collections import defaultdict
 from oceanfourcast import load_numpy as load, fourcastnet, unet
+from neuralop.models import FNO
 import importlib
 
 importlib.reload(load)
@@ -45,6 +46,13 @@ class Experiment():
         if self.modelstr == 'unet':
             self.model = unet.UNet(n_channels=self.in_channels,
                                    n_classes=self.out_channels)
+        elif self.modelstr == 'fno':
+            self.model = FNO(n_modes=(self.nfmodes, self.nfmodes),
+                             n_layers=self.depth,
+                             hidden_channels=self.embed_dims,
+                             in_channels=self.in_channels,
+                             out_channels=self.out_channels,
+                             device=device).to(device)
         else:
             self.model = fourcastnet.AFNONet(
                 embed_dim=self.embed_dims,
