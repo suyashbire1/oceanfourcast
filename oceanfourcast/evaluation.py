@@ -42,17 +42,28 @@ class Experiment():
         ax.grid()
         return ax.get_figure()
 
-    def recreate_model(self, epoch=None, device='cpu'):
+    def recreate_model(self, epoch=None, device='cpu', mlp=True):
         if self.modelstr == 'unet':
             self.model = unet.UNet(n_channels=self.in_channels,
                                    n_classes=self.out_channels)
         elif self.modelstr == 'fno':
-            self.model = FNO(n_modes=(self.nfmodes, self.nfmodes),
-                             n_layers=self.depth,
-                             hidden_channels=self.embed_dims,
-                             in_channels=self.in_channels,
-                             out_channels=self.out_channels,
-                             device=device).to(device)
+            if mlp:
+                self.model = FNO(n_modes=(self.nfmodes, self.nfmodes),
+                                 n_layers=self.depth,
+                                 hidden_channels=self.embed_dims,
+                                 in_channels=self.in_channels,
+                                 out_channels=self.out_channels,
+                                 device=device,
+                                 use_mlp=mlp,
+                                 mlp=dict(dropout=self.drop_rate,
+                                          expansion=self.mlp_ratio)).to(device)
+            else:
+                self.model = FNO(n_modes=(self.nfmodes, self.nfmodes),
+                                 n_layers=self.depth,
+                                 hidden_channels=self.embed_dims,
+                                 in_channels=self.in_channels,
+                                 out_channels=self.out_channels,
+                                 device=device).to(device)
         else:
             self.model = fourcastnet.AFNONet(
                 embed_dim=self.embed_dims,
@@ -201,9 +212,9 @@ class Experiment():
                     yip1 = ds[n][1].unsqueeze(0).to(
                         device, dtype=torch.float)  # yi + tau
                     yip1hat = model(ynext)
-                    truth = yip1[:, :self.out_channels].detach().numpy(
+                    truth = yip1[:, :self.out_channels].detach().cpu().numpy(
                     ).squeeze()
-                    pred = yip1hat.detach().numpy().squeeze()
+                    pred = yip1hat.detach().cpu().numpy().squeeze()
                     truth = (stdevs * truth + means)
                     pred = (stdevs * pred + means)
                     truth = truth[channel]
