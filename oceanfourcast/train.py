@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader, random_split, ConcatDataset, Subset
 from functools import partial
-from oceanfourcast import load_pressure as load
+from oceanfourcast import load_numpy as load
 from oceanfourcast import fourcastnet
 import importlib
 
@@ -95,42 +95,42 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
             mmap_mode=mmap_mode)
         h, w = dataset1.img_size
         in_channels = dataset1.channels
-        # dataset2 = load.OceanDataset(
-        #     path_ + "ofn_run3_2_data/wind/run3_2_less_wind/dynDiags2.npy",
+        dataset2 = load.OceanDataset(
+            path_ + "ofn_run3_2_data/wind/run3_2_less_wind/dynDiags2.npy",
+            spinupts=spinupts,
+            tslag=tslag,
+            device=device,
+            fine_tune=fine_tune,
+            multi_expt_normalize=True,
+            mmap_mode=mmap_mode)
+        # dataset3 = load.OceanDataset(
+        #     path_+"ofn_run3_2_data/run3_2_less_flux/dynDiags.npy",
         #     spinupts=spinupts,
         #     tslag=tslag,
         #     device=device,
         #     fine_tune=fine_tune,
-        #     multi_expt_normalize=True,
-        #     mmap_mode=mmap_mode)
-        # # dataset3 = load.OceanDataset(
-        # #     path_+"ofn_run3_2_data/run3_2_less_flux/dynDiags.npy",
-        # #     spinupts=spinupts,
-        # #     tslag=tslag,
-        # #     device=device,
-        # #     fine_tune=fine_tune,
-        # #     multi_expt_normalize=True, mmap_mode=mmap_mode)
-        # dataset4 = load.OceanDataset(
-        #     path_ + "ofn_run3_2_data/wind/run3_2_more_wind/dynDiags2.npy",
+        #     multi_expt_normalize=True, mmap_mode=mmap_mode)
+        dataset4 = load.OceanDataset(
+            path_ + "ofn_run3_2_data/wind/run3_2_more_wind/dynDiags2.npy",
+            spinupts=spinupts,
+            tslag=tslag,
+            device=device,
+            fine_tune=fine_tune,
+            multi_expt_normalize=True,
+            mmap_mode=mmap_mode)
+        # dataset5 = load.OceanDataset(
+        #     path_+"ofn_run3_2_data/run3_2_more_flux/dynDiags.npy",
         #     spinupts=spinupts,
         #     tslag=tslag,
         #     device=device,
         #     fine_tune=fine_tune,
-        #     multi_expt_normalize=True,
-        #     mmap_mode=mmap_mode)
-        # # dataset5 = load.OceanDataset(
-        # #     path_+"ofn_run3_2_data/run3_2_more_flux/dynDiags.npy",
-        # #     spinupts=spinupts,
-        # #     tslag=tslag,
-        # #     device=device,
-        # #     fine_tune=fine_tune,
-        # #     multi_expt_normalize=True, mmap_mode=mmap_mode)
+        #     multi_expt_normalize=True, mmap_mode=mmap_mode)
         ds1_len = len(dataset1)
-        validation_dataset = Subset(dataset1, range(ds1_len // 5))
-        # train_dataset = ConcatDataset(
-        #     (dataset2, dataset4, Subset(dataset1, range(ds1_len // 5,
-        #                                                 ds1_len))))
-        train_dataset = Subset(dataset1, range(ds1_len // 5, ds1_len))
+        validation_dataset = Subset(dataset1, range(ds1_len // 2))
+        train_dataset = ConcatDataset(
+            (dataset2, dataset4, Subset(dataset1, range(ds1_len // 2,
+                                                        ds1_len))))
+        #train_dataset = Subset(dataset1, range(ds1_len // 5, ds1_len))
         print('Done loading datasets...')
 
     train_dataloader = DataLoader(train_dataset,
@@ -163,6 +163,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                           device=device)
     elif modelstr == 'fno':
         from neuralop.models import FNO
+        print(out_channels)
         model = FNO(n_modes=(nfmodes, nfmodes),
                     n_layers=depth,
                     hidden_channels=embed_dims,
@@ -374,7 +375,7 @@ def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
 
         out1 = model(x)
         loss1 = criterion(out1, y1[:, :model.Co])
-        #out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
+        out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
         out2 = model(out1)
 
         loss = loss1 + criterion(out2, y2[:, :model.Co])
