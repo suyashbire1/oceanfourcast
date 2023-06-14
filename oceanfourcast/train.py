@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader, random_split, ConcatDataset, Subset
 from functools import partial
-from oceanfourcast import load_numpy as load
+from oceanfourcast import load_pressure as load
 from oceanfourcast import fourcastnet
 import importlib
 
