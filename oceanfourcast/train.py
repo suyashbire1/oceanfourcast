@@ -169,6 +169,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                     hidden_channels=embed_dims,
                     in_channels=in_channels,
                     out_channels=out_channels,
+                    norm=partial(nn.LayerNorm, eps=1e-6),
                     use_mlp=True,
                     mlp=dict(dropout=drop_rate, expansion=mlp_ratio),
                     device=device).to(device)
