@@ -68,9 +68,9 @@ class OceanDataset(Dataset):
             data torch.Tensor([channels, h, w])
             label torch.Tensor([channels, h, w])
         """
-        data = self.transform(torch.tensor(self.data[idx]))[:, 6:7]
-        label = self.target_transform(torch.tensor(
-            self.data[idx + self.tslag]))[:, 6:7]
+        data = self.transform(torch.tensor(self.data[idx]))[6:7]
+        label = self.target_transform(torch.tensor(self.data[idx +
+                                                             self.tslag]))[6:7]
         return data, label
 
     def getitem_finetune(self, idx):
@@ -79,8 +79,8 @@ class OceanDataset(Dataset):
             data torch.Tensor([channels, h, w])
             label [torch.Tensor([channels, h, w]), torch.Tensor([channels, h, w])]
         """
-        data = self.transform(torch.tensor(self.data[idx]))[:, 6:7]
+        data = self.transform(torch.tensor(self.data[idx]))[6:7]
         label = self.target_transform(torch.tensor(
-            self.data[idx + self.tslag]))[:, 6:7], self.target_transform(
-                torch.tensor(self.data[idx + 2 * self.tslag]))[:, 6:7]
+            self.data[idx + self.tslag]))[6:7], self.target_transform(
+                torch.tensor(self.data[idx + 2 * self.tslag]))[6:7]
         return data, label

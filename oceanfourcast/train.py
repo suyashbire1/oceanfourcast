@@ -374,7 +374,7 @@ def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
 
         out1 = model(x)
         loss1 = criterion(out1, y1[:, :model.Co])
-        out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
+        #out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
         out2 = model(out1)
 
         loss = loss1 + criterion(out2, y2[:, :model.Co])
