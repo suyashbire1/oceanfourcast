@@ -332,6 +332,30 @@ class Experiment():
                                   dim=1)
         return accs, lon, lat
 
+    def march_forward(ni,
+                      len_,
+                      data_file=None,
+                      device='cpu',
+                      requires_grad=False):
+        model = self.model
+        if data_file is None:
+            data_file = self.data_file
+        ds = load.OceanDataset(data_file,
+                               spinupts=self.spinupts,
+                               tslag=self.tslag,
+                               multi_expt_normalize=True,
+                               device=device)
+        yi = ds[i][0].unsqueeze(0).to(device,
+                                      dtype=torch.float,
+                                      requires_grad=requires_grad)  # yi
+        ynext = yi
+        for i, n in enumerate(range(ni, ni + len_, self.tslag)):
+            yip1 = ds[n][1].unsqueeze(0).to(device,
+                                            dtype=torch.float)  # yi + tau
+            yip1hat = model(ynext)
+            ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]), dim=1)
+        return yi, ynext[:, :self.out_channels]
+
 
 def create_experiments_dict(root_dir, pretrain=True):
     if pretrain:
