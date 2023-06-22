@@ -332,7 +332,8 @@ class Experiment():
                                   dim=1)
         return accs, lon, lat
 
-    def march_forward(ni,
+    def march_forward(self,
+                      ni,
                       len_,
                       data_file=None,
                       device='cpu',
@@ -345,9 +346,9 @@ class Experiment():
                                tslag=self.tslag,
                                multi_expt_normalize=True,
                                device=device)
-        yi = ds[i][0].unsqueeze(0).to(device,
-                                      dtype=torch.float,
-                                      requires_grad=requires_grad)  # yi
+        yi = ds[ni][0].unsqueeze(0).to(
+            device, dtype=torch.float)  #, requires_grad=requires_grad)  # yi
+        yi.requires_grad = requires_grad
         ynext = yi
         for i, n in enumerate(range(ni, ni + len_, self.tslag)):
             yip1 = ds[n][1].unsqueeze(0).to(device,
@@ -355,6 +356,41 @@ class Experiment():
             yip1hat = model(ynext)
             ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]), dim=1)
         return yi, ynext[:, :self.out_channels]
+
+    def create_forward_scenario(self,
+                                ni,
+                                len_,
+                                save_file=None,
+                                data_file=None,
+                                device='cpu',
+                                requires_grad=False):
+
+        model = self.model
+        if data_file is None:
+            data_file = self.data_file
+        ds = load.OceanDataset(data_file,
+                               spinupts=self.spinupts,
+                               tslag=self.tslag,
+                               multi_expt_normalize=True,
+                               device=device)
+        yi = ds[ni][0].unsqueeze(0).to(
+            device, dtype=torch.float)  #, requires_grad=requires_grad)  # yi
+        yi.requires_grad = requires_grad
+        ynext = yi
+        if save_file is not None:
+            f = open(save_file, 'ab')
+            np.save(f, yi[:, :self.out_channels].detach().cpu().numpy())
+        for i, n in enumerate(range(ni, ni + len_ * self.tslag, self.tslag)):
+            yip1 = ds[n][1].unsqueeze(0).to(device,
+                                            dtype=torch.float)  # yi + tau
+            yip1hat = model(ynext)
+            if save_file is not None:
+                np.save(f,
+                        yip1hat[:, :self.out_channels].detach().cpu().numpy())
+            ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]), dim=1)
+            sys.stdout.write(f'\r {i/len_*100:0.2f}%')
+        if save_file is not None:
+            f.close()
 
 
 def create_experiments_dict(root_dir, pretrain=True):
