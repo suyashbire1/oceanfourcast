@@ -46,11 +46,12 @@ importlib.reload(fourcastnet)
 @click.option("--fine_tune", default=False)
 @click.option("--mmap_mode", default=None)
 @click.option("--nfmodes", default=16)
+@click.option("--fnonorm", default=None)
 def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
          embed_dims, patch_size, depth, num_blocks, mlp_ratio, sparsity,
          device, tslag, spinupts, drop_rate, out_channels, max_runtime_hours,
          resume_from_chkpt, optimizerstr, modelstr, fine_tune, mmap_mode,
-         nfmodes):
+         nfmodes, fnonorm):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -164,16 +165,15 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
     elif modelstr == 'fno':
         from neuralop.models import FNO
         print(out_channels)
-        model = FNO(
-            n_modes=(nfmodes, nfmodes),
-            n_layers=depth,
-            hidden_channels=embed_dims,
-            in_channels=in_channels,
-            out_channels=out_channels,
-            #norm=nn.LayerNorm(embed_dims, eps=1e-6),
-            use_mlp=True,
-            mlp=dict(dropout=drop_rate, expansion=mlp_ratio),
-            device=device).to(device)
+        model = FNO(n_modes=(nfmodes, nfmodes),
+                    n_layers=depth,
+                    hidden_channels=embed_dims,
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    norm=fnonorm,
+                    use_mlp=True,
+                    mlp=dict(dropout=drop_rate, expansion=mlp_ratio),
+                    device=device).to(device)
         model.Co = out_channels
     else:
         print(f'argument modelstr {modelstr} invalid')
@@ -303,6 +303,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                         sparsity=sparsity,
                         device=device,
                         tslag=tslag,
+                        fnonorm=fnonorm,
                         spinupts=spinupts,
                         modelstr=modelstr,
                         drop_rate=drop_rate,
