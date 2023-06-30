@@ -439,7 +439,7 @@ def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
                          (out1[:, 2] + out1[:, 3])**2)
         ke2 = torch.mean((out2[:, 0] + out2[:, 1])**2 +
                          (out2[:, 2] + out2[:, 3])**2)
-        keloss = (ke1 - ke0) * lm[0] + (ke2 - ke1) * lm[1]
+        keloss = torch.abs(ke1 - ke0) * lm[0] + torch.abs(ke2 - ke1) * lm[1]
         loss = loss1 + criterion(out2, y2[:, :model.Co]) + keloss
         loss.backward()
 
@@ -511,8 +511,8 @@ def validate_one_epoch_finetune_kecons(model, criterion, data_loader, device,
                              (out1[:, 2] + out1[:, 3])**2)
             ke2 = torch.mean((out2[:, 0] + out2[:, 1])**2 +
                              (out2[:, 2] + out2[:, 3])**2)
-            keloss = lag_multiplier[0] * (ke1 - ke0) + lag_multiplier[1] * (
-                ke1 - ke2)
+            keloss = lag_multiplier[0] * torch.abs(
+                ke1 - ke0) + lag_multiplier[1] * torch.abs(ke1 - ke2)
             vloss = loss1 + criterion(out2, y2[:, :model.Co]) + keloss
             running_vloss += vloss.item()
     return running_vloss / (i + 1)
