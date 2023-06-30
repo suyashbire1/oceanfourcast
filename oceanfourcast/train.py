@@ -182,8 +182,8 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
     criterion = nn.MSELoss()
     learnable_params = list(model.parameters())
     if kecons:
-        lag_multiplier = torch.rand(2, requires_grad=True)
-        learnable_params += lag_multiplier
+        lag_multiplier = torch.rand(2, requires_grad=True, device=device)
+        learnable_params += [lag_multiplier]
     optimizers = {
         'adam':
         torch.optim.Adam(learnable_params, lr=learning_rate,
@@ -422,7 +422,7 @@ def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
     iters = len(data_loader) // print_every
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, iters)
-    lag_multiplier = kwargs.get('lag_multiplier')
+    lm = kwargs.get('lag_multiplier')
     for i, (x, (y1, y2)) in enumerate(data_loader):
         x = x.to(device, dtype=torch.float)
         y1 = y1.to(device, dtype=torch.float)
@@ -435,16 +435,13 @@ def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
         out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
         out2 = model(out1)
 
-        loss2 = criterion(out2, y2[:, :model.Co])
-
         ke0 = torch.mean((x[:, 0] + x[:, 1])**2 + (x[:, 2] + x[:, 3])**2)
         ke1 = torch.mean((out1[:, 0] + out1[:, 1])**2 +
                          (out1[:, 2] + out1[:, 3])**2)
         ke2 = torch.mean((out2[:, 0] + out2[:, 1])**2 +
                          (out2[:, 2] + out2[:, 3])**2)
-        keloss = lag_multiplier[0] * (ke1 - ke0) + lag_multiplier[1] * (ke2 -
-                                                                        ke1)
-        loss = loss1 + loss2 + keloss
+        keloss = (ke1 - ke0) * lm[0] + (ke2 - ke1) * lm[1]
+        loss = loss1 + criterion(out2, y2[:, :model.Co]) + keloss
         loss.backward()
 
         optimizer.step()
