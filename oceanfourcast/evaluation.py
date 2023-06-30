@@ -23,6 +23,10 @@ class Experiment():
             logs = json.load(f)
         for k, v in logs.items():
             setattr(self, k, v)
+        try:
+            self.fnonorm = getattr(self, 'fnonorm')
+        except AttributeError:
+            self.fnonorm = None
 
     def plot_train_loss(self, ax=None):
         if ax is None:
@@ -55,6 +59,7 @@ class Experiment():
                                  out_channels=self.out_channels,
                                  device=device,
                                  use_mlp=mlp,
+                                 norm=self.fnonorm,
                                  mlp=dict(dropout=self.drop_rate,
                                           expansion=self.mlp_ratio)).to(device)
             else:
@@ -63,6 +68,7 @@ class Experiment():
                                  hidden_channels=self.embed_dims,
                                  in_channels=self.in_channels,
                                  out_channels=self.out_channels,
+                                 norm=self.fnonorm,
                                  device=device).to(device)
         else:
             self.model = fourcastnet.AFNONet(

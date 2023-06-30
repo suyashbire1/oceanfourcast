@@ -47,11 +47,12 @@ importlib.reload(fourcastnet)
 @click.option("--mmap_mode", default=None)
 @click.option("--nfmodes", default=16)
 @click.option("--fnonorm", default=None)
+@click.option("--kecons", default=False)
 def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
          embed_dims, patch_size, depth, num_blocks, mlp_ratio, sparsity,
          device, tslag, spinupts, drop_rate, out_channels, max_runtime_hours,
          resume_from_chkpt, optimizerstr, modelstr, fine_tune, mmap_mode,
-         nfmodes, fnonorm):
+         nfmodes, fnonorm, kecons):
 
     start_time = datetime.now()
     end_time = start_time + timedelta(hours=max_runtime_hours)
@@ -179,17 +180,20 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         print(f'argument modelstr {modelstr} invalid')
 
     criterion = nn.MSELoss()
+    learnable_params = list(model.parameters())
+    if kecons:
+        lag_multiplier = torch.rand(2, requires_grad=True)
+        learnable_params += lag_multiplier
     optimizers = {
         'adam':
-        torch.optim.Adam(model.parameters(),
-                         lr=learning_rate,
+        torch.optim.Adam(learnable_params, lr=learning_rate,
                          betas=(0.9, 0.95)),
         'adamw':
-        torch.optim.AdamW(model.parameters(),
+        torch.optim.AdamW(learnable_params,
                           lr=learning_rate,
                           betas=(0.9, 0.95)),
         'sgd':
-        torch.optim.SGD(model.parameters(), lr=learning_rate)
+        torch.optim.SGD(learnable_params, lr=learning_rate)
     }
 
     if resume_from_chkpt:
@@ -221,11 +225,18 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         best_vloss_epoch = 1
 
     if fine_tune:
-        train_func = train_one_epoch_finetune
-        validate_func = validate_one_epoch_finetune
+        if kecons:
+            train_func = train_one_epoch_finetune_kecons
+            validate_func = validate_one_epoch_finetune_kecons
+            kwargs = dict(lag_multiplier=lag_multiplier)
+        else:
+            train_func = train_one_epoch_finetune
+            validate_func = validate_one_epoch_finetune
+            kwargs = dict()
     else:
         train_func = train_one_epoch
         validate_func = validate_one_epoch
+        kwargs = dict()
 
     for epoch in range(begin_epoch, epochs + 1):
         epoch_start_time = datetime.now()
@@ -236,11 +247,12 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         model.train(True)
         print('Training...')
         avg_loss = train_func(epoch, model, criterion, train_dataloader,
-                              optimizer, device, training_loss_logger)
+                              optimizer, device, training_loss_logger,
+                              **kwargs)
         model.train(False)
         print('Validating...')
         avg_vloss = validate_func(model, criterion, validation_dataloader,
-                                  device)
+                                  device, **kwargs)
         print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
         print(f'Epoch evaluation time: {(datetime.now()-epoch_start_time)}')
         avg_training_loss_logger.append(avg_loss)
@@ -326,7 +338,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
 
 
 def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
-                    training_loss_logger):
+                    training_loss_logger, **kwargs):
     running_loss = 0.
     avg_loss = 0.
     print_every = 10
@@ -362,7 +374,7 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
 
 
 def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
-                             device, training_loss_logger):
+                             device, training_loss_logger, **kwargs):
     running_loss = 0.
     avg_loss = 0.
     print_every = 10
@@ -382,6 +394,57 @@ def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
         out2 = model(out1)
 
         loss = loss1 + criterion(out2, y2[:, :model.Co])
+        loss.backward()
+
+        optimizer.step()
+
+        # Gather data and report
+        running_loss += loss.item()
+        avg_loss += loss.item()
+        if i % print_every == 9:
+            scheduler.step()
+            last_loss = running_loss / 10  # loss per batch
+            training_loss_logger.append(last_loss)
+            print(
+                f'batch {i+1}, loss: {last_loss:0.2E}, lr: {scheduler.get_last_lr()[0]:0.2E}'
+            )
+            running_loss = 0.
+
+    return avg_loss / (i + 1)
+
+
+def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
+                                    optimizer, device, training_loss_logger,
+                                    **kwargs):
+    running_loss = 0.
+    avg_loss = 0.
+    print_every = 10
+    iters = len(data_loader) // print_every
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, iters)
+    lag_multiplier = kwargs.get('lag_multiplier')
+    for i, (x, (y1, y2)) in enumerate(data_loader):
+        x = x.to(device, dtype=torch.float)
+        y1 = y1.to(device, dtype=torch.float)
+        y2 = y2.to(device, dtype=torch.float)
+
+        optimizer.zero_grad()
+
+        out1 = model(x)
+        loss1 = criterion(out1, y1[:, :model.Co])
+        out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
+        out2 = model(out1)
+
+        loss2 = criterion(out2, y2[:, :model.Co])
+
+        ke0 = torch.mean((x[:, 0] + x[:, 1])**2 + (x[:, 2] + x[:, 3])**2)
+        ke1 = torch.mean((out1[:, 0] + out1[:, 1])**2 +
+                         (out1[:, 2] + out1[:, 3])**2)
+        ke2 = torch.mean((out2[:, 0] + out2[:, 1])**2 +
+                         (out2[:, 2] + out2[:, 3])**2)
+        keloss = lag_multiplier[0] * (ke1 - ke0) + lag_multiplier[1] * (ke2 -
+                                                                        ke1)
+        loss = loss1 + loss2 + keloss
         loss.backward()
 
         optimizer.step()
@@ -428,6 +491,33 @@ def validate_one_epoch_finetune(model, criterion, data_loader, device):
             out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
             out2 = model(out1)
             vloss = loss1 + criterion(out2, y2[:, :model.Co])
+            running_vloss += vloss.item()
+    return running_vloss / (i + 1)
+
+
+def validate_one_epoch_finetune_kecons(model, criterion, data_loader, device,
+                                       **kwargs):
+    with torch.no_grad():
+        lag_multiplier = kwargs.get('lag_multiplier')
+        running_vloss = 0.0
+        for i, (x, (y1, y2)) in enumerate(data_loader):
+            x = x.to(device, dtype=torch.float)
+            y1 = y1.to(device, dtype=torch.float)
+            y2 = y2.to(device, dtype=torch.float)
+
+            out1 = model(x)
+            loss1 = criterion(out1, y1[:, :model.Co])
+            out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
+            out2 = model(out1)
+
+            ke0 = torch.mean((x[:, 0] + x[:, 1])**2 + (x[:, 2] + x[:, 3])**2)
+            ke1 = torch.mean((out1[:, 0] + out1[:, 1])**2 +
+                             (out1[:, 2] + out1[:, 3])**2)
+            ke2 = torch.mean((out2[:, 0] + out2[:, 1])**2 +
+                             (out2[:, 2] + out2[:, 3])**2)
+            keloss = lag_multiplier[0] * (ke1 - ke0) + lag_multiplier[1] * (
+                ke1 - ke2)
+            vloss = loss1 + criterion(out2, y2[:, :model.Co]) + keloss
             running_vloss += vloss.item()
     return running_vloss / (i + 1)
 
