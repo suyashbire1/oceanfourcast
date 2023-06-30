@@ -181,9 +181,8 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
 
     criterion = nn.MSELoss()
     learnable_params = list(model.parameters())
-    if kecons:
-        lag_multiplier = torch.rand(2, requires_grad=True, device=device)
-        learnable_params += [lag_multiplier]
+    lag_multiplier = torch.rand(2, requires_grad=True, device=device)
+    learnable_params += [lag_multiplier]
     optimizers = {
         'adam':
         torch.optim.Adam(learnable_params, lr=learning_rate,
