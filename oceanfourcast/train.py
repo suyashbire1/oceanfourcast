@@ -97,6 +97,8 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
             mmap_mode=mmap_mode)
         h, w = dataset1.img_size
         in_channels = dataset1.channels
+        means = dataset1.means
+        stdevs = dataset1.stdevs
         dataset2 = load.OceanDataset(
             path_ + "ofn_run3_2_data/wind/run3_2_less_wind/dynDiags2.npy",
             spinupts=spinupts,
@@ -227,7 +229,9 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         if kecons:
             train_func = train_one_epoch_finetune_kecons
             validate_func = validate_one_epoch_finetune_kecons
-            kwargs = dict(lag_multiplier=lag_multiplier)
+            kwargs = dict(lag_multiplier=lag_multiplier,
+                          means=means,
+                          stdevs=stdevs)
         else:
             train_func = train_one_epoch_finetune
             validate_func = validate_one_epoch_finetune
@@ -422,6 +426,8 @@ def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, iters)
     lm = kwargs.get('lag_multiplier')
+    means = kwargs.get('means')
+    stdevs = kwargs.get('stdevs')
     for i, (x, (y1, y2)) in enumerate(data_loader):
         x = x.to(device, dtype=torch.float)
         y1 = y1.to(device, dtype=torch.float)
@@ -433,15 +439,29 @@ def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
         loss1 = criterion(out1, y1[:, :model.Co])
         out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
         out2 = model(out1)
+        loss2 = criterion(out2, y2[:, :model.Co])
 
-        ke0 = torch.mean((x[:, 0] + x[:, 1])**2 + (x[:, 2] + x[:, 3])**2)
-        ke1 = torch.mean((out1[:, 0] + out1[:, 1])**2 +
-                         (out1[:, 2] + out1[:, 3])**2)
-        ke2 = torch.mean((out2[:, 0] + out2[:, 1])**2 +
-                         (out2[:, 2] + out2[:, 3])**2)
+        usurf = x[:, 0] * stdevs[0] + means[0]
+        ubot = x[:, 1] * stdevs[1] + means[1]
+        vsurf = x[:, 2] * stdevs[2] + means[2]
+        vbot = x[:, 3] * stdevs[3] + means[3]
+        ke0 = torch.mean((usurf + ubot)**2 + (vsurf + vbot)**2)
+
+        usurf = out1[:, 0] * stdevs[0] + means[0]
+        ubot = out1[:, 1] * stdevs[1] + means[1]
+        vsurf = out1[:, 2] * stdevs[2] + means[2]
+        vbot = out1[:, 3] * stdevs[3] + means[3]
+        ke1 = torch.mean((usurf + ubot)**2 + (vsurf + vbot)**2)
+
+        usurf = out2[:, 0] * stdevs[0] + means[0]
+        ubot = out2[:, 1] * stdevs[1] + means[1]
+        vsurf = out2[:, 2] * stdevs[2] + means[2]
+        vbot = out2[:, 3] * stdevs[3] + means[3]
+        ke2 = torch.mean((usurf + ubot)**2 + (vsurf + vbot)**2)
+
         keloss = torch.abs((ke1 - ke0) * lm[0]) + torch.abs(
             (ke2 - ke1) * lm[1])
-        loss = loss1 + criterion(out2, y2[:, :model.Co]) + keloss
+        loss = loss1 + loss2 + keloss
         loss.backward()
 
         optimizer.step()
@@ -495,7 +515,9 @@ def validate_one_epoch_finetune(model, criterion, data_loader, device):
 def validate_one_epoch_finetune_kecons(model, criterion, data_loader, device,
                                        **kwargs):
     with torch.no_grad():
-        lag_multiplier = kwargs.get('lag_multiplier')
+        lm = kwargs.get('lag_multiplier')
+        means = kwargs.get('means')
+        stdevs = kwargs.get('stdevs')
         running_vloss = 0.0
         for i, (x, (y1, y2)) in enumerate(data_loader):
             x = x.to(device, dtype=torch.float)
@@ -506,16 +528,28 @@ def validate_one_epoch_finetune_kecons(model, criterion, data_loader, device,
             loss1 = criterion(out1, y1[:, :model.Co])
             out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
             out2 = model(out1)
+            loss2 = criterion(out2, y2[:, :model.Co])
 
-            ke0 = torch.mean((x[:, 0] + x[:, 1])**2 + (x[:, 2] + x[:, 3])**2)
-            ke1 = torch.mean((out1[:, 0] + out1[:, 1])**2 +
-                             (out1[:, 2] + out1[:, 3])**2)
-            ke2 = torch.mean((out2[:, 0] + out2[:, 1])**2 +
-                             (out2[:, 2] + out2[:, 3])**2)
-            keloss = torch.abs(lag_multiplier[0] *
-                               (ke1 - ke0)) + torch.abs(lag_multiplier[1] *
-                                                        (ke1 - ke2))
-            vloss = loss1 + criterion(out2, y2[:, :model.Co]) + keloss
+            usurf = x[:, 0] * stdevs[0] + means[0]
+            ubot = x[:, 1] * stdevs[1] + means[1]
+            vsurf = x[:, 2] * stdevs[2] + means[2]
+            vbot = x[:, 3] * stdevs[3] + means[3]
+            ke0 = torch.mean((usurf + ubot)**2 + (vsurf + vbot)**2)
+
+            usurf = out1[:, 0] * stdevs[0] + means[0]
+            ubot = out1[:, 1] * stdevs[1] + means[1]
+            vsurf = out1[:, 2] * stdevs[2] + means[2]
+            vbot = out1[:, 3] * stdevs[3] + means[3]
+            ke1 = torch.mean((usurf + ubot)**2 + (vsurf + vbot)**2)
+
+            usurf = out2[:, 0] * stdevs[0] + means[0]
+            ubot = out2[:, 1] * stdevs[1] + means[1]
+            vsurf = out2[:, 2] * stdevs[2] + means[2]
+            vbot = out2[:, 3] * stdevs[3] + means[3]
+            ke2 = torch.mean((usurf + ubot)**2 + (vsurf + vbot)**2)
+            keloss = torch.abs((ke1 - ke0) * lm[0]) + torch.abs(
+                (ke1 - ke2) * lm[1])
+            vloss = loss1 + loss2 + keloss
             running_vloss += vloss.item()
     return running_vloss / (i + 1)
 
