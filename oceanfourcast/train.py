@@ -444,6 +444,7 @@ def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
         loss.backward()
 
         optimizer.step()
+        lm.data.clamp_(1e-5)
 
         # Gather data and report
         running_loss += loss.item()
