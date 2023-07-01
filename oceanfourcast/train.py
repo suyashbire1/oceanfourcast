@@ -426,8 +426,10 @@ def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, iters)
     lm = kwargs.get('lag_multiplier')
-    means = kwargs.get('means')
-    stdevs = kwargs.get('stdevs')
+    means = torch.tensor(kwargs.get('means'), device=device, dtype=torch.float)
+    stdevs = torch.tensor(kwargs.get('stdevs'),
+                          device=device,
+                          dtype=torch.float)
     for i, (x, (y1, y2)) in enumerate(data_loader):
         x = x.to(device, dtype=torch.float)
         y1 = y1.to(device, dtype=torch.float)
@@ -516,8 +518,12 @@ def validate_one_epoch_finetune_kecons(model, criterion, data_loader, device,
                                        **kwargs):
     with torch.no_grad():
         lm = kwargs.get('lag_multiplier')
-        means = kwargs.get('means')
-        stdevs = kwargs.get('stdevs')
+        means = torch.tensor(kwargs.get('means'),
+                             device=device,
+                             dtype=torch.float)
+        stdevs = torch.tensor(kwargs.get('stdevs'),
+                              device=device,
+                              dtype=torch.float)
         running_vloss = 0.0
         for i, (x, (y1, y2)) in enumerate(data_loader):
             x = x.to(device, dtype=torch.float)
