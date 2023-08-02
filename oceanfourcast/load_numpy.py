@@ -240,6 +240,7 @@ class OceanDataset(Dataset):
         self.transform = lambda x: (x - self.means) / (self.stdevs + 1e-5)
         self.pos_embed = lambda x: torch.cat(
             x, np.meshgrid(np.linspace(0, 1, h), np.linspace(0, 1, w)), dim=0)
+        self.channels += 2
         self.target_transform = lambda x: (x - self.means) / (self.stdevs +
                                                               1e-5)
 
