@@ -507,7 +507,7 @@ def validate_one_epoch_finetune(model, criterion, data_loader, device):
 
             out1 = model(x)
             loss1 = criterion(out1, y1[:, :model.Co])
-            out1 = torch.cat((out1, y1[:, model.Co:]), dim=1)
+            out1 = torch.cat((out1, x[:, model.Co:]), dim=1)
             out2 = model(out1)
             vloss = loss1 + criterion(out2, y2[:, :model.Co])
             running_vloss += vloss.item()
