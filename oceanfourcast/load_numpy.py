@@ -7,6 +7,7 @@ import json
 from torchvision import transforms
 import click
 import glob
+from neuralop.datasets.transforms import PositionalEmbedding, Normalizer
 
 
 @click.command()
@@ -215,8 +216,8 @@ class OceanDataset(Dataset):
         self.means = stats_file['timemeans']
         self.stdevs = stats_file['timestdevs']
 
-
         self.img_size = [self.data.shape[-1], self.data.shape[-2]]
+        h, w = self.img_size
         self.channels = self.data.shape[1]
         self.fine_tune = fine_tune
         self.means = np.concatenate(
@@ -236,8 +237,11 @@ class OceanDataset(Dataset):
 
         # self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
         # self.target_transform = transforms.Normalize(mean=self.means,
-        self.transform = lambda x: (x-self.means)/(self.stdevs + 1e-5)
-        self.target_transform = lambda x: (x-self.means)/(self.stdevs + 1e-5)
+        self.transform = lambda x: (x - self.means) / (self.stdevs + 1e-5)
+        self.pos_embed = lambda x: torch.cat(
+            x, np.meshgrid(np.linspace(0, 1, h), np.linspace(0, 1, w)), dim=0)
+        self.target_transform = lambda x: (x - self.means) / (self.stdevs +
+                                                              1e-5)
 
     def __len__(self):
         return self.len_
@@ -251,7 +255,7 @@ class OceanDataset(Dataset):
             data torch.Tensor([channels, h, w])
             label torch.Tensor([channels, h, w])
         """
-        data = self.transform(torch.tensor(self.data[idx]))
+        data = self.pos_embed(self.transform(torch.tensor(self.data[idx])))
         label = self.target_transform(torch.tensor(self.data[idx +
                                                              self.tslag]))
         return data, label
@@ -262,7 +266,7 @@ class OceanDataset(Dataset):
             data torch.Tensor([channels, h, w])
             label [torch.Tensor([channels, h, w]), torch.Tensor([channels, h, w])]
         """
-        data = self.transform(torch.tensor(self.data[idx]))
+        data = self.pos_embed(self.transform(torch.tensor(self.data[idx])))
         label = self.target_transform(torch.tensor(
             self.data[idx + self.tslag])), self.target_transform(
                 torch.tensor(self.data[idx + 2 * self.tslag]))
