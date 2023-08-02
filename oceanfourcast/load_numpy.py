@@ -238,8 +238,12 @@ class OceanDataset(Dataset):
         # self.transform = transforms.Normalize(mean=self.means, std=self.stdevs)
         # self.target_transform = transforms.Normalize(mean=self.means,
         self.transform = lambda x: (x - self.means) / (self.stdevs + 1e-5)
+        self.grid_x, self.grid_y = torch.meshgrid(torch.linspace(0, 1, h),
+                                                  torch.linspace(0, 1, w))
+        self.grid_x = self.grid_x.unsqueeze(0)
+        self.grid_y = self.grid_y.unsqueeze(0)
         self.pos_embed = lambda x: torch.cat(
-            x, np.meshgrid(np.linspace(0, 1, h), np.linspace(0, 1, w)), dim=0)
+            (x, self.grid_x, self.grid_y), dim=0)
         self.channels += 2
         self.target_transform = lambda x: (x - self.means) / (self.stdevs +
                                                               1e-5)
