@@ -167,16 +167,17 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
                           device=device)
     elif modelstr == 'fno':
         from neuralop.models import FNO
-        print(out_channels)
-        model = FNO(n_modes=(nfmodes, nfmodes),
-                    n_layers=depth,
-                    hidden_channels=embed_dims,
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    norm=fnonorm,
-                    use_mlp=True,
-                    mlp=dict(dropout=drop_rate, expansion=mlp_ratio),
-                    device=device).to(device)
+        pos_emb = fourcastnet.PosEmbed([h, w], device=device)
+        fno_model = FNO(n_modes=(nfmodes, nfmodes),
+                        n_layers=depth,
+                        hidden_channels=embed_dims,
+                        in_channels=in_channels,
+                        out_channels=out_channels,
+                        norm=fnonorm,
+                        use_mlp=True,
+                        mlp=dict(dropout=drop_rate, expansion=mlp_ratio),
+                        device=device).to(device)
+        model = nn.Sequential(pos_emb, fno_model)
         model.Co = out_channels
     else:
         print(f'argument modelstr {modelstr} invalid')

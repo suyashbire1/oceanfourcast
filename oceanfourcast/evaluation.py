@@ -387,8 +387,8 @@ class Experiment():
             f = open(save_file, 'ab')
             np.save(f, yi[:, :self.out_channels].detach().cpu().numpy())
         for i, n in enumerate(range(ni, ni + len_ * self.tslag, self.tslag)):
-            yip1 = ds[n][1].unsqueeze(0).to(device,
-                                            dtype=torch.float)  # yi + tau
+            yip1 = ds[n + self.tslag][0].unsqueeze(0).to(
+                device, dtype=torch.float)  # yi + tau
             yip1hat = model(ynext)
             if save_file is not None:
                 np.save(f,
