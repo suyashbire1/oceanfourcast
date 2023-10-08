@@ -37,20 +37,24 @@ class Mlp(nn.Module):
 
 class PosEmbed(nn.Module):
 
-    def __init__(self, img_size, device="cpu"):
+    def __init__(self, img_size, batch_size, device="cpu"):
         super(PosEmbed, self).__init__()
         self.img_size = img_size
 
         self.h = img_size[0]
         self.w = img_size[1]
 
-        self.grid_x = torch.nn.Parameter(torch.zeros(1, 1, self.h,
-                                                     self.w)).to(device)
-        self.grid_y = torch.nn.Parameter(torch.zeros(1, 1, self.h,
-                                                     self.w)).to(device)
+        self.freq = torch.pi / (2 * self.w) * torch.arange(self.w)
+        self.grid_x = torch.zeros(1, 1, self.h, self.w)
+        self.grid_x[:, :, :, ::2] = torch.sin(self.freq)
+        self.grid_x[:, :, :, 1::2] = torch.cos(self.freq)
+        self.grid_y[:, :, ::2] = torch.sin(self.freq)
+        self.grid_y[:, :, 1::2] = torch.cos(self.freq)
+        self.pos_x = self.grid_x.repeat((batch_size, 1, 1, 1)).to(device)
+        self.pos_y = self.grid_y.repeat((batch_size, 1, 1, 1)).to(device)
 
     def forward(self, x):
-        x = torch.cat((x, self.grid_x, self.grid_y), dim=1)
+        x = torch.cat((x, self.pos_x, self.pos_y), dim=1)
         return x
 
 

@@ -16,7 +16,7 @@ setup(
                       'netcdf4',
                       'einops',
                       'torchvision',
-                      'neuraloperators'
+                      'neuraloperator'
                       ],
 
     classifiers=[

@@ -259,7 +259,7 @@ class OceanDataset(Dataset):
             data torch.Tensor([channels, h, w])
             label torch.Tensor([channels, h, w])
         """
-        data = #self.pos_embed(self.transform(torch.tensor(self.data[idx])))
+        #data = self.pos_embed(self.transform(torch.tensor(self.data[idx])))
         data = self.transform(torch.tensor(self.data[idx]))
         label = self.target_transform(torch.tensor(self.data[idx +
                                                              self.tslag]))

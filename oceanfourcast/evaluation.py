@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import json
 import numpy as np
 import torch
+import torch.nn as nn
 import xarray as xr
 from collections import defaultdict
 from oceanfourcast import load_numpy as load, fourcastnet, unet
@@ -52,16 +53,24 @@ class Experiment():
                                    n_classes=self.out_channels)
         elif self.modelstr == 'fno':
             if mlp:
-                self.model = FNO(n_modes=(self.nfmodes, self.nfmodes),
-                                 n_layers=self.depth,
-                                 hidden_channels=self.embed_dims,
-                                 in_channels=self.in_channels,
-                                 out_channels=self.out_channels,
-                                 device=device,
-                                 use_mlp=mlp,
-                                 norm=self.fnonorm,
-                                 mlp=dict(dropout=self.drop_rate,
-                                          expansion=self.mlp_ratio)).to(device)
+
+                pos_emb = fourcastnet.PosEmbed(
+                    [self.image_height, self.image_width],
+                    # self.batch_size,
+                    1,
+                    device=device).to(device)
+                self.model = nn.Sequential(
+                    pos_emb,
+                    FNO(n_modes=(self.nfmodes, self.nfmodes),
+                        n_layers=self.depth,
+                        hidden_channels=self.embed_dims,
+                        in_channels=self.in_channels + 2,
+                        out_channels=self.out_channels,
+                        device=device,
+                        use_mlp=mlp,
+                        norm=self.fnonorm,
+                        mlp=dict(dropout=self.drop_rate,
+                                 expansion=self.mlp_ratio)).to(device))
             else:
                 self.model = FNO(n_modes=(self.nfmodes, self.nfmodes),
                                  n_layers=self.depth,
