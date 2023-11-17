@@ -87,7 +87,8 @@ class Experiment():
                 img_size=[self.image_height, self.image_width],
                 in_channels=self.in_channels,
                 out_channels=self.out_channels,
-                drop_rate=self.drop_rate)
+                drop_rate=self.drop_rate,
+                device=device).to(device)
 
         if epoch is None:
             epoch = self.best_vloss_epoch

@@ -5,6 +5,7 @@ from einops import rearrange
 import math
 from functools import partial
 from collections import OrderedDict
+import numpy as np
 
 
 class Mlp(nn.Module):
@@ -44,14 +45,20 @@ class PosEmbed(nn.Module):
         self.h = img_size[0]
         self.w = img_size[1]
 
-        self.freq = torch.pi / (2 * self.w) * torch.arange(self.w)
-        self.grid_x = torch.zeros(1, 1, self.h, self.w)
-        self.grid_x[:, :, :, ::2] = torch.sin(self.freq)
-        self.grid_x[:, :, :, 1::2] = torch.cos(self.freq)
-        self.grid_y[:, :, ::2] = torch.sin(self.freq)
-        self.grid_y[:, :, 1::2] = torch.cos(self.freq)
-        self.pos_x = self.grid_x.repeat((batch_size, 1, 1, 1)).to(device)
-        self.pos_y = self.grid_y.repeat((batch_size, 1, 1, 1)).to(device)
+        self.freq_x = torch.pi / (2 * self.w) * torch.arange(self.w)
+        self.grid_x = torch.zeros(self.w)
+        self.grid_x[::2] = torch.sin(self.freq_x[::2])
+        self.grid_x[1::2] = torch.cos(self.freq_x[1::2])
+        self.grid_x = self.grid_x.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+
+        self.freq_y = torch.pi / (2 * self.h) * torch.arange(self.h)
+        self.grid_y = torch.zeros(self.h)
+        self.grid_y[::2] = torch.sin(self.freq_y[::2])
+        self.grid_y[1::2] = torch.cos(self.freq_y[1::2])
+        self.grid_y = self.grid_y.unsqueeze(0).unsqueeze(0).unsqueeze(-1)
+
+        self.pos_x = self.grid_x.repeat((batch_size, 1, self.h, 1)).to(device)
+        self.pos_y = self.grid_y.repeat((batch_size, 1, 1, self.w)).to(device)
 
     def forward(self, x):
         x = torch.cat((x, self.pos_x, self.pos_y), dim=1)

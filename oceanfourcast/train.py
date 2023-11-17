@@ -184,6 +184,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
         print(f'argument modelstr {modelstr} invalid')
 
     criterion = nn.MSELoss()
+    criterion2 = nn.L1Loss()
     learnable_params = list(model.parameters())
     lag_multiplier = torch.rand(2, requires_grad=True, device=device)
     learnable_params += [lag_multiplier]
@@ -255,13 +256,13 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
 
         model.train(True)
         print('Training...')
-        avg_loss = train_func(epoch, model, criterion, train_dataloader,
-                              optimizer, device, training_loss_logger,
-                              scheduler, **kwargs)
+        avg_loss = train_func(epoch, model, criterion, criterion2,
+                              train_dataloader, optimizer, device,
+                              training_loss_logger, scheduler, **kwargs)
         model.train(False)
         print('Validating...')
-        avg_vloss = validate_func(model, criterion, validation_dataloader,
-                                  device, **kwargs)
+        avg_vloss = validate_func(model, criterion, criterion2,
+                                  validation_dataloader, device, **kwargs)
         print(f'LOSS train: {avg_loss}, valid: {avg_vloss}')
         print(f'Epoch evaluation time: {(datetime.now()-epoch_start_time)}')
         avg_training_loss_logger.append(avg_loss)
@@ -348,8 +349,9 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
     # validation_dataset.close()
 
 
-def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
-                    training_loss_logger, scheduler, **kwargs):
+def train_one_epoch(epoch, model, criterion, criterion2, data_loader,
+                    optimizer, device, training_loss_logger, scheduler,
+                    **kwargs):
     running_loss = 0.
     avg_loss = 0.
     print_every = 10
@@ -364,7 +366,8 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
 
         out = model(x)
 
-        loss = criterion(out, y[:, :model.Co])
+        loss = criterion(
+            out, y[:, :model.Co]) + 0.05 * criterion2(out, y[:, :model.Co])
         loss.backward()
 
         optimizer.step()
@@ -385,9 +388,9 @@ def train_one_epoch(epoch, model, criterion, data_loader, optimizer, device,
     return avg_loss / (i + 1)
 
 
-def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
-                             device, training_loss_logger, scheduler,
-                             **kwargs):
+def train_one_epoch_finetune(epoch, model, criterion, criterion2, data_loader,
+                             optimizer, device, training_loss_logger,
+                             scheduler, **kwargs):
     running_loss = 0.
     avg_loss = 0.
     print_every = 10
@@ -402,11 +405,13 @@ def train_one_epoch_finetune(epoch, model, criterion, data_loader, optimizer,
         optimizer.zero_grad()
 
         out1 = model(x)
-        loss1 = criterion(out1, y1[:, :model.Co])
+        loss1 = criterion(out1, y1[:, :model.Co]) + 0.05 * criterion2(
+            out1, y1[:, :model.Co])
         out1 = torch.cat((out1, x[:, model.Co:]), dim=1)
         out2 = model(out1)
 
-        loss = loss1 + criterion(out2, y2[:, :model.Co])
+        loss = loss1 + criterion(out2, y2[:, :model.Co]) + 0.05 * criterion2(
+            out2, y2[:, :model.Co])
         loss.backward()
 
         optimizer.step()
@@ -494,7 +499,7 @@ def train_one_epoch_finetune_kecons(epoch, model, criterion, data_loader,
     return avg_loss / (i + 1)
 
 
-def validate_one_epoch(model, criterion, data_loader, device):
+def validate_one_epoch(model, criterion, criterion2, data_loader, device):
     with torch.no_grad():
         running_vloss = 0.0
         for i, (x, y) in enumerate(data_loader):
@@ -503,12 +508,14 @@ def validate_one_epoch(model, criterion, data_loader, device):
 
             out = model(x)
 
-            vloss = criterion(out, y[:, :model.Co])
+            vloss = criterion(out, y[:, :model.Co]) + 0.05 * criterion2(
+                out, y[:, :model.Co])
             running_vloss += vloss.item()
     return running_vloss / (i + 1)
 
 
-def validate_one_epoch_finetune(model, criterion, data_loader, device):
+def validate_one_epoch_finetune(model, criterion, criterion2, data_loader,
+                                device):
     with torch.no_grad():
         running_vloss = 0.0
         for i, (x, (y1, y2)) in enumerate(data_loader):
@@ -517,10 +524,13 @@ def validate_one_epoch_finetune(model, criterion, data_loader, device):
             y2 = y2.to(device, dtype=torch.float)
 
             out1 = model(x)
-            loss1 = criterion(out1, y1[:, :model.Co])
+            loss1 = criterion(out1, y1[:, :model.Co]) + 0.05 * criterion2(
+                out1, y1[:, :model.Co])
             out1 = torch.cat((out1, x[:, model.Co:]), dim=1)
             out2 = model(out1)
-            vloss = loss1 + criterion(out2, y2[:, :model.Co])
+            vloss = loss1 + criterion(
+                out2,
+                y2[:, :model.Co]) + 0.05 * criterion2(out2, y2[:, :model.Co])
             running_vloss += vloss.item()
     return running_vloss / (i + 1)
 
