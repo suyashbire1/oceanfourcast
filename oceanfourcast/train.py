@@ -87,7 +87,7 @@ def main(name, output_dir, data_file, epochs, batch_size, learning_rate,
             global_dataset, [train_set_len, valid_set_len])
     else:
         print('Loading datasets...')
-        path_ = "/home/bire/nobackup/"
+        path_ = "./data/"
         dataset1 = load.OceanDataset(
             path_ + "ofn_run3_2_data/wind/run3_2/dynDiags2.npy",
             spinupts=spinupts,

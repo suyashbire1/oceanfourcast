@@ -25,14 +25,11 @@ plt.ioff()
 @click.option("--expt_dir", default="./")
 @click.option("--init_time")
 @click.option("--ensembles_dir", default='./ensembles2')
-@click.option(
-    "--data_file",
-    default='/home/bire/nobackup/ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
+@click.option("--data_file",
+              default='./data/ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
 @click.option(
     "--global_stats_file",
-    default=
-    "/home/bire/nobackup/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz"
-)
+    default="./data/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz")
 @click.option("--timesteps", default=200)
 @click.option("--channel", default=9)
 @click.option("--vmax", default=5)

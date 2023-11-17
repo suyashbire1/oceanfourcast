@@ -10,9 +10,8 @@ import time
 @click.option("--expt_dir", default="./")
 @click.option("--n_ensembles", default=15)
 @click.option("--out_dir", default='./ensembles2')
-@click.option(
-    "--data_file",
-    default='/home/bire/nobackup/ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
+@click.option("--data_file",
+              default='./data/ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
 @click.option("--timesteps", default=200)
 @click.option("--save_file", default=True)
 def main(expt_dir, n_ensembles, out_dir, data_file, timesteps, save_file):

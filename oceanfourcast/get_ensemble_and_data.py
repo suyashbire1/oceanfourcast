@@ -9,8 +9,8 @@ import glob
 def get_ensemble_and_data(expt_dir, want_init_time, timesteps=200):
 
     ensembles_dir = './ensembles2'
-    data_file = '/home/bire/nobackup/ofn_run3_2_data/wind/run3_2/dynDiags2.npy'
-    global_stats_file = '/home/bire/nobackup/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz'
+    data_file = './data/ofn_run3_2_data/wind/run3_2/dynDiags2.npy'
+    global_stats_file = './data/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz'
     expt1 = ev.Experiment(expt_dir)
 
     means = np.load(global_stats_file)['timemeans']
