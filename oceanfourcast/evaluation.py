@@ -379,7 +379,8 @@ class Experiment():
                                 save_file=None,
                                 data_file=None,
                                 device='cpu',
-                                requires_grad=False):
+                                requires_grad=False,
+                                tauMax=None):
 
         model = self.model
         if data_file is None:
@@ -389,6 +390,15 @@ class Experiment():
                                tslag=self.tslag,
                                multi_expt_normalize=True,
                                device=device)
+        if tauMax is not None:
+            nlats, nlons = ds.img_size
+            lono, lato = 0, 15
+            dlats, dlons = 0.25, 0.25
+            loneast = lono + (nlons - 2) * dlons
+            latnorth = lato + (nlats - 2) * dlats
+            lon = np.linspace(lono - dlons, loneast, nlons)
+            lat = np.linspace(lato - dlats, latnorth, nlats) + dlats / 2
+            lats, lons = np.meshgrid(lat, lon, indexing='ij')
         yi = ds[ni][0].unsqueeze(0).to(
             device, dtype=torch.float)  #, requires_grad=requires_grad)  # yi
         yi.requires_grad = requires_grad
@@ -403,7 +413,15 @@ class Experiment():
             if save_file is not None:
                 np.save(f,
                         yip1hat[:, :self.out_channels].detach().cpu().numpy())
-            ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]), dim=1)
+            if tauMax is None:
+                ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]),
+                                  dim=1)
+            else:
+                tau = -tauMax * np.cos(2 * np.pi * ((lats - lato) /
+                                                    (nlats - 2) / dlats))
+                tau = torch.tensor(tau, dtype=torch.float32, device=device)
+                tau = tau.unsqueeze(0).unsqueeze(0)
+                ynext = torch.cat((yip1hat, tau), dim=1)
             sys.stdout.write(f'\r {i/len_*100:0.2f}%')
         if save_file is not None:
             f.close()
