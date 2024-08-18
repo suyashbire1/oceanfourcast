@@ -54,8 +54,8 @@ def save_numpy_file_from_xarray(xarray_data_file):
         timemeans = np.mean(data, axis=0)
         timestdevs = np.std(data, axis=0)
 
-        print("removing old files...")
-        os.remove(xarray_data_file)
+        # print("removing old files...")
+        # os.remove(xarray_data_file)
 
         print("Saving data...")
         numpy_data_file = os.path.join(data_dir, "dynDiags.npy")
@@ -185,8 +185,8 @@ def v_corner_to_center(v):
 
 
 if __name__ == "__main__":
-    #save_numpy_file_from_xarray()
-    save_global_stats_wind_only()
+    save_numpy_file_from_xarray()
+    #save_global_stats_wind_only()
 
 
 class OceanDataset(Dataset):

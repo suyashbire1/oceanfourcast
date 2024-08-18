@@ -6,11 +6,19 @@ import time
 import glob
 
 
-def get_ensemble_and_data(expt_dir, want_init_time, timesteps=200):
+def get_ensemble_and_data(expt_dir,
+                          want_init_time,
+                          timesteps=200,
+                          ensembles_dir=None,
+                          skip=1):
 
-    ensembles_dir = './ensembles2'
-    data_file = './data/ofn_run3_2_data/wind/run3_2/dynDiags2.npy'
-    global_stats_file = './data/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz'
+    if ensembles_dir is None:
+        ensembles_dir = './ensembles2'
+    data_file = os.path.join(
+        expt_dir, '../../../ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
+    global_stats_file = os.path.join(
+        expt_dir,
+        '../../../ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz')
     expt1 = ev.Experiment(expt_dir)
 
     means = np.load(global_stats_file)['timemeans']
@@ -34,7 +42,8 @@ def get_ensemble_and_data(expt_dir, want_init_time, timesteps=200):
                 predanom = np.load(f)
                 while f.tell() < fsz:
                     predanom = np.vstack((predanom, np.load(f)))
-            pred = predanom * stdevs[:-1] + means[:-1]
+            pred = predanom * stdevs[..., ::skip, ::skip][:-1] + means[
+                ..., ::skip, ::skip][:-1]
             init_time = init_time + spinup
             datanow = data[init_time:(init_time + timesteps * expt1.tslag +
                                       1):expt1.tslag, :-1]

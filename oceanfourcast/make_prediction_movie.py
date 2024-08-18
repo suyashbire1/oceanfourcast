@@ -26,10 +26,10 @@ plt.ioff()
 @click.option("--init_time")
 @click.option("--ensembles_dir", default='./ensembles2')
 @click.option("--data_file",
-              default='./data/ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
+              default='../data/ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
 @click.option(
     "--global_stats_file",
-    default="./data/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz")
+    default="../data/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz")
 @click.option("--timesteps", default=200)
 @click.option("--channel", default=9)
 @click.option("--vmax", default=5)
@@ -61,7 +61,7 @@ def main(expt_dir, init_time, ensembles_dir, data_file, global_stats_file,
 
     data = np.load(data_file, mmap_mode='r')
     spinup = expt1.spinupts
-    modelstrs = {'fourcastnet': 'AFNO', 'fno': 'FNO'}
+    modelstrs = {'fourcastnet': 'AFNO', 'fno': 'FNO', 'unet': 'U-Net'}
     modelstr = modelstrs[expt1.modelstr]
     for fstr in files:
         found_init_time = int(fstr.split('/')[-1].split('e')[-1].split('.')[0])
@@ -128,7 +128,7 @@ def main(expt_dir, init_time, ensembles_dir, data_file, global_stats_file,
 
     subprocess.run([
         "ffmpeg", "-r", f"{frame_rate}", "-pattern_type", "glob", "-i",
-        "*.png", "psi.mp4"
+        "*.png", f"{ensembles_dir}/e{init_time}_psi.mp4"
     ],
                    check=True)
     png_files = [

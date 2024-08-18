@@ -11,10 +11,10 @@ import glob
 @click.option("--expt_dir", default="./")
 @click.option("--ensembles_dir", default='./ensembles2')
 @click.option("--data_file",
-              default='./data/ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
+              default='../data/ofn_run3_2_data/wind/run3_2/dynDiags2.npy')
 @click.option(
     "--global_stats_file",
-    default="./data/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz")
+    default="../data/ofn_run3_2_data/wind/run3_2/dynDiagsGlobalStats2D.npz")
 @click.option("--timesteps", default=200)
 def main(expt_dir, ensembles_dir, data_file, global_stats_file, timesteps):
 
@@ -46,6 +46,9 @@ def main(expt_dir, ensembles_dir, data_file, global_stats_file, timesteps):
                                   1):expt1.tslag, :-1]
         datandim = (datanow - means[:-1]) / (stdevs[:-1] + 1e-6)
 
+        if pred.shape[0] > datanow.shape[0]:
+            pred = pred[1:]
+            predanom = predanom[1:]
         rmse = np.mean((pred - datanow)**2, axis=(-2, -1))
         rmse_clim = np.mean((datanow - means[:-1])**2, axis=(-2, -1))
         rmse_persistence = np.mean((datanow - pred[0])**2, axis=(-2, -1))
@@ -61,7 +64,7 @@ def main(expt_dir, ensembles_dir, data_file, global_stats_file, timesteps):
     rmses_clim = stack(rmses_clim)
     rmses_persistence = stack(rmses_persistence)
     accs = stack(accs)
-    np.savez(os.path.join(expt_dir, 'ensemble_metrics.npz'),
+    np.savez(os.path.join(expt_dir, 'ensemble_metrics_new.npz'),
              rmse=rmses,
              rmse_clim=rmses_clim,
              rmse_persistence=rmses_persistence,

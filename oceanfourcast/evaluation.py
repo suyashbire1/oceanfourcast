@@ -47,15 +47,15 @@ class Experiment():
         ax.grid()
         return ax.get_figure()
 
-    def recreate_model(self, epoch=None, device='cpu', mlp=True):
+    def recreate_model(self, epoch=None, device='cpu', mlp=True, skip=1):
         if self.modelstr == 'unet':
             self.model = unet.UNet(n_channels=self.in_channels,
-                                   n_classes=self.out_channels)
+                                   n_classes=self.out_channels).to(device)
         elif self.modelstr == 'fno':
             if mlp:
 
                 pos_emb = fourcastnet.PosEmbed(
-                    [self.image_height, self.image_width],
+                    [self.image_height // skip, self.image_width // skip],
                     # self.batch_size,
                     1,
                     device=device).to(device)
@@ -380,7 +380,7 @@ class Experiment():
                                 data_file=None,
                                 device='cpu',
                                 requires_grad=False,
-                                tauMax=None):
+                                taumax=None):
 
         model = self.model
         if data_file is None:
@@ -390,7 +390,7 @@ class Experiment():
                                tslag=self.tslag,
                                multi_expt_normalize=True,
                                device=device)
-        if tauMax is not None:
+        if taumax is not None:
             nlats, nlons = ds.img_size
             lono, lato = 0, 15
             dlats, dlons = 0.25, 0.25
@@ -407,21 +407,60 @@ class Experiment():
             f = open(save_file, 'ab')
             np.save(f, yi[:, :self.out_channels].detach().cpu().numpy())
         for i, n in enumerate(range(ni, ni + len_ * self.tslag, self.tslag)):
-            yip1 = ds[n + self.tslag][0].unsqueeze(0).to(
-                device, dtype=torch.float)  # yi + tau
+            if taumax is None:
+                yip1 = ds[n + self.tslag][0].unsqueeze(0).to(
+                    device, dtype=torch.float)  # yi + tau
             yip1hat = model(ynext)
             if save_file is not None:
                 np.save(f,
                         yip1hat[:, :self.out_channels].detach().cpu().numpy())
-            if tauMax is None:
+            if taumax is None:
                 ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]),
                                   dim=1)
             else:
-                tau = -tauMax * np.cos(2 * np.pi * ((lats - lato) /
+                tau = -taumax * np.cos(2 * np.pi * ((lats - lato) /
                                                     (nlats - 2) / dlats))
                 tau = torch.tensor(tau, dtype=torch.float32, device=device)
                 tau = tau.unsqueeze(0).unsqueeze(0)
                 ynext = torch.cat((yip1hat, tau), dim=1)
+            sys.stdout.write(f'\r {i/len_*100:0.2f}%')
+        if save_file is not None:
+            f.close()
+
+    def create_forward_scenario_lowres(self,
+                                       ni,
+                                       len_,
+                                       save_file=None,
+                                       data_file=None,
+                                       device='cpu',
+                                       requires_grad=False,
+                                       skip=2):
+
+        model = self.model
+        if data_file is None:
+            data_file = self.data_file
+        ds = load.OceanDataset(data_file,
+                               spinupts=self.spinupts,
+                               tslag=self.tslag,
+                               multi_expt_normalize=True,
+                               device=device)
+        yi = ds[ni][0].unsqueeze(0).to(
+            device, dtype=torch.float)  #, requires_grad=requires_grad)  # yi
+        yi = yi[..., ::skip, ::skip]
+        yi.requires_grad = requires_grad
+        ynext = yi
+        if save_file is not None:
+            f = open(save_file, 'ab')
+            np.save(f, yi[:, :self.out_channels].detach().cpu().numpy())
+        for i, n in enumerate(range(ni, ni + len_ * self.tslag, self.tslag)):
+            yip1 = ds[n + self.tslag][0].unsqueeze(0).to(
+                device, dtype=torch.float)  # yi + tau
+            yip1 = yip1[..., ::skip, ::skip]
+            yip1hat = model(ynext)
+            if save_file is not None:
+                np.save(f,
+                        yip1hat[:, :self.out_channels].detach().cpu().numpy())
+            ynext = torch.cat((yip1hat, yip1[:, self.out_channels:]), dim=1)
             sys.stdout.write(f'\r {i/len_*100:0.2f}%')
         if save_file is not None:
             f.close()
